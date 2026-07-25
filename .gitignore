@@ -1,2 +1,97 @@
-# ShipStudio metadata
+# ---------------------------------------------------------------------------
+# Cumulative ignore rules for the whole repo.
+#
+# The priority here is that nothing carrying real user data or a credential
+# reaches a remote. This app stores live financial records and wrapped
+# encryption keys on disk (budget-app/server/data), and its bank integration
+# holds a long-lived SimpleFIN access URL with credentials embedded in it, so
+# databases, logs and env files are all treated as secrets.
+# ---------------------------------------------------------------------------
+
+# ---- secrets & credentials ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+*.jks
+*.keystore
+id_rsa*
+id_ecdsa*
+id_ed25519*
+*.ppk
+.npmrc
+.netrc
+.pgpass
+.htpasswd
+secrets.json
+credentials.json
+service-account*.json
+*.token
+*_token
+*.secret
+auth.json
+
+# ---- databases: real budgets, user accounts, sessions, wrapped keys ----
+budget-app/server/data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sql.gz
+*.dump
+*.bak
+backups/
+
+# ---- logs (dev server output can capture tokens, access URLs, stack traces) ----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- dependencies & build output ----
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+coverage/
+*.tsbuildinfo
+
+# ---- user-uploaded / pasted content ----
+uploads/
+
+# ---- local tool state ----
 .shipstudio/
+.claude/settings.local.json
+.thumbnail
+
+# ---- editor & OS cruft ----
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+$RECYCLE.BIN/
+.idea/
+*.swp
+*.swo
+*~
+*.sublime-workspace
+
+# ---- scratch ----
+tmp/
+temp/
+*.tmp
+*.orig
+*.rej
