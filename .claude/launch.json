@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["budget-app/server/index.js"],
+      "port": 3178
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
+      "runtimeArgs": ["budget-app/node_modules/vite/bin/vite.js", "--config", "budget-app/vite.config.js"],
+      "port": 5173
+    }
+  ]
+}

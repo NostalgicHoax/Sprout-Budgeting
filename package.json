@@ -1,0 +1,9 @@
+{
+  "name": "sprout-budgeting-workspace",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix budget-app run dev",
+    "build": "npm --prefix budget-app run build",
+    "start": "npm --prefix budget-app run start"
+  }
+}
