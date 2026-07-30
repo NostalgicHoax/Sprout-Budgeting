@@ -14,6 +14,20 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.4.1',
+    date: '2026-07-30',
+    title: 'Loan Payment is easier to find',
+    items: [
+      {
+        heading: 'Loan Payment is always in the list',
+        body: 'It only appeared once you already had a loan account, which made it '
+          + 'impossible to find if you were setting one up for the first time. It '
+          + 'now sits alongside Transfer / Card Payment every time, and tells you '
+          + 'to add a loan account if you have not got one yet.',
+      },
+    ],
+  },
+  {
     version: '0.4.0',
     date: '2026-07-30',
     title: 'See what changed',
