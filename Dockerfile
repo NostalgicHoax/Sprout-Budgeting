@@ -48,6 +48,20 @@ ENV NODE_ENV=production \
     DATA_DIR=/data
 WORKDIR /app
 
+# The container starts with `node server/index.js` and never shells out to a
+# package manager, so npm, corepack and yarn are unused at runtime — and they
+# are where every fixable CVE in this image lives. The npm CLI bundles its own
+# copy of tar, sigstore, brace-expansion and picomatch, none of which appear in
+# the application's dependency tree. Deleting the tooling removes those findings
+# outright rather than chasing patched versions of software we do not run.
+# Note: apt-get upgrade would not touch these; they are npm packages, not deb.
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/lib/node_modules/corepack \
+           /usr/local/bin/npm /usr/local/bin/npx \
+           /usr/local/bin/corepack \
+           /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+           /opt/yarn-*
+
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build     /app/dist         ./dist
 COPY budget-app/package.json ./package.json
