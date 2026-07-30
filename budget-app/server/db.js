@@ -56,7 +56,8 @@ export function createSchema(db) {
       is_recurring INTEGER NOT NULL DEFAULT 0,
       external_id TEXT,
       transfer_account_id INTEGER,
-      transfer_pair_id INTEGER
+      transfer_pair_id INTEGER,
+      interest INTEGER
     );
     CREATE UNIQUE INDEX idx_txn_external ON transactions(account_id, external_id)
       WHERE external_id IS NOT NULL;
@@ -112,6 +113,11 @@ export function migrateBudgetDb(db) {
       last_sync_status TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`);
+  }
+  // Loan payments carry the interest slice of the payment so the ledger can show
+  // what was actually paid while the balance moves by principal only.
+  if (!cols.includes('interest')) {
+    db.exec('ALTER TABLE transactions ADD COLUMN interest INTEGER');
   }
   const hasPayeeCategories = db.prepare(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payee_categories'"

@@ -12,7 +12,10 @@
     "test:security": "node test-security.mjs",
     "test:sync": "node test-sync.mjs",
     "test:transfers": "node test-transfers.mjs",
-    "test:categorization": "node test-categorization.mjs"
+    "test:categorization": "node test-categorization.mjs",
+    "test:loan-payments": "node test-loan-payments.mjs",
+    "test:bulk-delete": "node test-bulk-delete.mjs",
+    "test:account-delete": "node test-account-delete.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",

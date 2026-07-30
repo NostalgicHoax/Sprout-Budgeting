@@ -85,6 +85,9 @@ export default function App() {
           accountId={view.accountId}
           categoryId={view.categoryId}
           refresh={refresh}
+          // the account this view is showing no longer exists, so fall back to
+          // the budget rather than rendering an empty register
+          onAccountDeleted={() => setView({ type: 'plan' })}
         />
       )}
     </div>

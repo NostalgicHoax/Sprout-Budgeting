@@ -5,12 +5,19 @@ import { api } from '../api.js';
 import LoanPanel from './LoanPanel.jsx';
 import ConfirmButton from './ConfirmButton.jsx';
 
-export default function AccountView({ state, accountId, categoryId, refresh }) {
+export default function AccountView({ state, accountId, categoryId, refresh, onAccountDeleted }) {
   const [txns, setTxns] = useState(null);
   const [payees, setPayees] = useState([]);
   const [payeeCats, setPayeeCats] = useState(new Map());
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [acctMenu, setAcctMenu] = useState(null);
+  const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  // anchor for shift-click range selection, so a long run can be picked without
+  // ticking every box
+  const [lastClicked, setLastClicked] = useState(null);
 
   const isCategory = categoryId != null;
   const isAll = accountId === 'all';
@@ -34,6 +41,11 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // switching accounts or categories shows a different list; carrying a
+  // selection across would put rows the user can no longer see under the
+  // delete button
+  useEffect(() => { setSelected(new Set()); setLastClicked(null); }, [accountId, categoryId]);
+
   async function mutated() {
     await Promise.all([refresh(), load()]);
   }
@@ -43,7 +55,40 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
     await mutated();
   }
 
+  function toggle(id, index, shiftKey) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (shiftKey && lastClicked != null) {
+        // extend from the anchor, matching the anchor's resulting state
+        const [lo, hi] = lastClicked < index ? [lastClicked, index] : [index, lastClicked];
+        const turningOn = !prev.has(id);
+        for (let i = lo; i <= hi; i++) {
+          const rowId = txns[i]?.id;
+          if (rowId == null) continue;
+          if (turningOn) next.add(rowId); else next.delete(rowId);
+        }
+      } else if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setLastClicked(index);
+  }
+
+  async function deleteSelected() {
+    await api('/api/transactions/bulk-delete', { method: 'POST', body: { ids: [...selected] } });
+    setSelected(new Set());
+    setLastClicked(null);
+    setEditingId(null);
+    await mutated();
+  }
+
   if (!txns) return <main className="main" />;
+
+  const allSelected = txns.length > 0 && txns.every(t => selected.has(t.id));
+  const someSelected = selected.size > 0 && !allSelected;
 
   return (
     <main className="main">
@@ -69,15 +114,80 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
           <div className="balance-label">{isCategory ? 'Net Activity' : isAll ? 'Total Balance' : 'Balance'}</div>
         </div>
         <div className="spacer" />
+        {account && (
+          <button
+            className="btn btn-ghost"
+            onClick={e => setAcctMenu(e.currentTarget.getBoundingClientRect())}
+            title="Rename, close, or delete this account"
+          >
+            ⚙ Account <span className="rta-caret">▾</span>
+          </button>
+        )}
         <button className="btn btn-accent" onClick={() => { setAdding(true); setEditingId(null); }}>
           ＋ Add Transaction
         </button>
       </header>
 
+      {acctMenu && account && (
+        <AccountMenu
+          anchor={acctMenu}
+          account={account}
+          onClose={() => setAcctMenu(null)}
+          onRename={() => { setAcctMenu(null); setRenaming(true); }}
+          onDelete={() => { setAcctMenu(null); setDeleting(true); }}
+          onToggleClosed={async () => {
+            await api(`/api/accounts/${account.id}`, { method: 'PATCH', body: { closed: !account.closed } });
+            setAcctMenu(null);
+            await refresh();
+          }}
+        />
+      )}
+      {renaming && account && (
+        <RenameAccount account={account} onClose={() => setRenaming(false)} onDone={mutated} />
+      )}
+      {deleting && account && (
+        <DeleteAccount
+          account={account}
+          onClose={() => setDeleting(false)}
+          onDone={async () => { setDeleting(false); await refresh(); onAccountDeleted?.(); }}
+        />
+      )}
+
       {account?.type === 'loan' && <LoanPanel key={account.id} account={account} refresh={refresh} />}
+
+      {selected.size > 0 && (
+        <div className="selection-bar">
+          <span className="selection-count">
+            {selected.size} selected
+            <span className="selection-total"> · {fmt(txns.filter(t => selected.has(t.id)).reduce((s, t) => s + t.amount, 0))}</span>
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(new Set()); setLastClicked(null); }}>
+            Clear
+          </button>
+          <ConfirmButton
+            label={`🗑 Delete ${selected.size}`}
+            confirmLabel={`Confirm delete ${selected.size}`}
+            title="Delete every selected transaction"
+            onConfirm={deleteSelected}
+          />
+        </div>
+      )}
 
       <div className="table-scroll">
       <div className={`grid-row txn-grid col-head ${showAccountCol ? 'with-account' : ''}`}>
+        <div className="sel-cell">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={el => { if (el) el.indeterminate = someSelected; }}
+            onChange={() => {
+              setSelected(allSelected ? new Set() : new Set(txns.map(t => t.id)));
+              setLastClicked(null);
+            }}
+            title={allSelected ? 'Clear selection' : 'Select every transaction shown'}
+            aria-label="Select all transactions"
+          />
+        </div>
         <div>DATE</div>
         {showAccountCol && <div>ACCOUNT</div>}
         <div>PAYEE</div>
@@ -97,11 +207,18 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
             defaultAccountId={showAccountCol ? state.accounts.find(a => !a.closed)?.id : accountId}
             defaultCatValue={isCategory ? `cat:${categoryId}` : undefined}
             refresh={refresh}
-            onSave={async body => { await api('/api/transactions', { method: 'POST', body }); await mutated(); setAdding(false); }}
+            onSave={async body => {
+              // loan payments have their own endpoint: it splits interest from
+              // principal and steps the term down by one payment
+              const url = body.kind === 'loan-payment' ? '/api/loan-payment' : '/api/transactions';
+              await api(url, { method: 'POST', body });
+              await mutated();
+              setAdding(false);
+            }}
             onCancel={() => setAdding(false)}
           />
         )}
-        {txns.map(t =>
+        {txns.map((t, i) =>
           editingId === t.id ? (
             <TxnEditor
               key={t.id}
@@ -116,7 +233,14 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
               onDelete={async () => { await remove(t.id); setEditingId(null); }}
             />
           ) : (
-            <TxnRow key={t.id} txn={t} showAccount={showAccountCol} onEdit={() => { setEditingId(t.id); setAdding(false); }} />
+            <TxnRow
+              key={t.id}
+              txn={t}
+              showAccount={showAccountCol}
+              selected={selected.has(t.id)}
+              onToggle={e => toggle(t.id, i, e.shiftKey)}
+              onEdit={() => { setEditingId(t.id); setAdding(false); }}
+            />
           )
         )}
         {txns.length === 0 && !adding && (
@@ -128,6 +252,146 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
   );
 }
 
+function AccountMenu({ anchor, account, onClose, onRename, onDelete, onToggleClosed }) {
+  const style = {
+    position: 'fixed',
+    top: anchor.bottom + 6,
+    left: Math.max(12, Math.min(anchor.left, window.innerWidth - 236)),
+    width: 224,
+  };
+  return (
+    <>
+      <div className="menu-overlay" onClick={onClose} />
+      <div className="budget-menu acct-menu" style={style}>
+        <div className="menu-item" onClick={onRename}>✏️ Rename…</div>
+        <div className="menu-item" onClick={onToggleClosed}>
+          {account.closed ? '📂 Reopen account' : '📦 Close account'}
+        </div>
+        <div className="menu-divider" />
+        <div className="menu-item danger" onClick={onDelete}>🗑 Delete account…</div>
+        <div className="menu-item static">
+          {account.closed
+            ? 'Reopening puts it back in the sidebar.'
+            : 'Closing hides it but keeps every transaction.'}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RenameAccount({ account, onClose, onDone }) {
+  const [name, setName] = useState(account.name);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save(e) {
+    e.preventDefault();
+    if (!name.trim()) { setError('Enter a name'); return; }
+    setSaving(true);
+    try {
+      await api(`/api/accounts/${account.id}`, { method: 'PATCH', body: { name: name.trim() } });
+      await onDone();
+      onClose();
+    } catch (err) { setError(err.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={save}>
+        <h3>Rename account</h3>
+        <label>
+          Name
+          <input autoFocus value={name} onChange={e => setName(e.target.value)} />
+        </label>
+        {account.type === 'credit' && (
+          <p className="modal-hint">Its payment category is renamed to match.</p>
+        )}
+        {error && <p className="soft-error">{error}</p>}
+        <div className="popover-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-accent btn-sm" disabled={saving}>Save</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** Deleting an account can't be undone, so this shows what goes with it before
+ *  asking — transaction count, the money it takes back out of Ready to Assign,
+ *  and which other accounts keep a re-filed row. */
+function DeleteAccount({ account, onClose, onDone }) {
+  const [impact, setImpact] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api(`/api/accounts/${account.id}/deletion-impact`).then(setImpact).catch(e => setError(e.message));
+  }, [account.id]);
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await api(`/api/accounts/${account.id}`, { method: 'DELETE' });
+      await onDone();
+    } catch (e) { setError(e.message); setBusy(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal delete-modal" onClick={e => e.stopPropagation()}>
+        <h3>Delete “{account.name}”?</h3>
+        {!impact && !error && <p className="modal-hint">Working out what this affects…</p>}
+        {impact && (
+          <>
+            <ul className="impact-list">
+              <li>
+                <strong>{impact.transactions}</strong> transaction{impact.transactions === 1 ? '' : 's'} on this
+                account will be deleted.
+              </li>
+              {impact.incomeRemoved !== 0 && (
+                <li className="warn">
+                  Ready to Assign drops by <strong>{fmt(Math.abs(impact.incomeRemoved))}</strong>, because income
+                  recorded here goes too.
+                </li>
+              )}
+              {impact.category && (
+                <li>
+                  The payment category <strong>{impact.category.name}</strong> is removed
+                  {impact.category.assigned !== 0 && (
+                    <> and the <strong>{fmt(impact.category.assigned)}</strong> assigned to it returns to Ready to Assign</>
+                  )}.
+                </li>
+              )}
+              {impact.stranded.map(s => (
+                <li key={s.account}>
+                  <strong>{s.count}</strong> transfer{s.count === 1 ? '' : 's'} on <strong>{s.account}</strong> stay
+                  put as uncategorized — that balance doesn’t change.
+                </li>
+              ))}
+              {impact.connection && (
+                <li>It stops syncing from <strong>{impact.connection}</strong>.</li>
+              )}
+            </ul>
+            <p className="modal-hint">
+              This can’t be undone. To keep the history instead, close the account.
+            </p>
+          </>
+        )}
+        {error && <p className="soft-error">{error}</p>}
+        <div className="popover-actions">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <ConfirmButton
+            label="Delete account"
+            confirmLabel="Yes, delete it"
+            disabled={!impact || busy}
+            onConfirm={confirm}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function categoryLabel(t) {
   if (t.is_income) return <span className="cat-tag income">💵 Ready to Assign</span>;
   if (t.is_transfer) return <span className="cat-tag muted">🔁 Transfer / Payment</span>;
@@ -136,13 +400,24 @@ function categoryLabel(t) {
   return <span className="cat-tag">{t.category_emoji ? `${t.category_emoji} ` : ''}{t.category_name}</span>;
 }
 
-function TxnRow({ txn: t, showAccount, onEdit }) {
+function TxnRow({ txn: t, showAccount, selected, onToggle, onEdit }) {
   return (
     <div
-      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''}`}
+      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''} ${selected ? 'selected' : ''}`}
       title={!t.cleared ? 'Pending — double-click to edit' : 'Double-click to edit'}
       onDoubleClick={onEdit}
     >
+      {/* the click is stopped here so ticking a box never starts an edit */}
+      <div className="sel-cell" onDoubleClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={onToggle}
+          onChange={() => {}}
+          aria-label={`Select transaction ${t.payee || fmtDate(t.date)}`}
+          title="Select — shift-click to extend"
+        />
+      </div>
       <div className="muted">{fmtDate(t.date)}</div>
       {showAccount && <div className="soft">{t.account_name}</div>}
       <div className="soft">
@@ -343,6 +618,21 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
       if (!transferAccountId) { setError('Choose the account this transfers to'); return; }
       if (Number(transferAccountId) === Number(accountId)) { setError('A transfer needs two different accounts'); return; }
     }
+    if (catValue === 'loan-payment') {
+      if (!transferAccountId) { setError('Choose the loan you paid'); return; }
+      if (out <= 0) { setError('Enter the amount you paid as an outflow'); return; }
+      try {
+        await onSave({
+          kind: 'loan-payment',
+          fromAccountId: Number(accountId),
+          loanAccountId: Number(transferAccountId),
+          amount: out, date, memo,
+        });
+      } catch (e) {
+        setError(e.message);
+      }
+      return;
+    }
     const amount = inn - out;
     const body = {
       accountId: Number(accountId), date, payee, memo, amount,
@@ -361,6 +651,7 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
   return (
     <>
       <div className={`grid-row txn-grid row editor ${showAccount ? 'with-account' : ''}`}>
+        <div className="sel-cell" />{/* keeps the editor aligned with the select column */}
         <div><input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
         {showAccount && (
           <div>
@@ -372,7 +663,18 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
           </div>
         )}
         <div>
-          {catValue === 'transfer' ? (
+          {catValue === 'loan-payment' ? (
+            <select
+              value={transferAccountId}
+              onChange={e => setTransferAccountId(e.target.value)}
+              title="The loan this payment goes toward"
+            >
+              <option value="" disabled>🏦 Pay loan…</option>
+              {state.accounts
+                .filter(a => a.type === 'loan' && !a.closed)
+                .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          ) : catValue === 'transfer' ? (
             <select
               value={transferAccountId}
               onChange={e => setTransferAccountId(e.target.value)}
@@ -414,6 +716,11 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
             )}
             <option value="income">💵 Inflow: Ready to Assign</option>
             <option value="transfer">🔁 Transfer / Card Payment</option>
+            {/* only for new entries: re-splitting interest and stepping the term
+                back on an edit isn't supported, so the server rejects it */}
+            {!txn && state.accounts.some(a => a.type === 'loan' && !a.closed) && (
+              <option value="loan-payment">🏦 Loan Payment</option>
+            )}
             <option value="uncategorized">Uncategorized</option>
             <option value="new-category">＋ New category…</option>
             {state.groups.map(g => (

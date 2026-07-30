@@ -31,6 +31,13 @@ function monthlyPayment(balance, aprPct, n) {
   return Math.round((balance * r) / (1 - Math.pow(1 + r, -n)));
 }
 
+/** Months from `from` to `month`; negative for months already past. */
+function monthOffset(month, from) {
+  const [y1, m1] = month.split('-').map(Number);
+  const [y2, m2] = from.split('-').map(Number);
+  return (y1 * 12 + m1) - (y2 * 12 + m2);
+}
+
 function termLabel(months) {
   const y = Math.floor(months / 12);
   const m = months % 12;
@@ -50,20 +57,30 @@ function compactMoney(cents) {
   return `$${Math.round(d)}`;
 }
 
-function PayoffChart({ baseline, scenario, startBalance }) {
+function PayoffChart({ baseline, scenario, startBalance, actual = [] }) {
   // extra top padding keeps the legend in its own band above the plot
   const W = 620, H = 216, L = 52, R = 12, T = 34, B = 30;
   const plotW = W - L - R, plotH = H - T - B;
+  // `actual` sits at negative month offsets — history to the left of today — so
+  // the axis has to start behind zero once there are payments to show
+  const minX = actual.length ? Math.min(...actual.map(p => p.m), 0) : 0;
   const maxX = Math.max(baseline.points.length - 1, 1);
-  const maxY = Math.max(startBalance, 1);
-  const x = m => L + (m / maxX) * plotW;
+  const span = maxX - minX;
+  const maxY = Math.max(startBalance, ...actual.map(p => p.balance), 1);
+  const x = m => L + ((m - minX) / span) * plotW;
   const y = v => T + (1 - v / maxY) * plotH;
   const path = pts => pts.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
 
-  const step = maxX <= 12 ? 3 : maxX <= 36 ? 6 : maxX <= 96 ? 12 : 24;
+  const step = span <= 12 ? 3 : span <= 36 ? 6 : span <= 96 ? 12 : 24;
   const xTicks = [];
   for (let m = 0; m <= maxX; m += step) xTicks.push(m);
-  const xLabel = m => (m === 0 ? 'Now' : m % 12 === 0 ? `${m / 12} yr` : `${m} mo`);
+  for (let m = -step; m >= minX; m -= step) xTicks.unshift(m);
+  const xLabel = m => {
+    if (m === 0) return 'Now';
+    const a = Math.abs(m);
+    const label = a % 12 === 0 ? `${a / 12} yr` : `${a} mo`;
+    return m < 0 ? `−${label}` : label;
+  };
   const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => f * maxY);
 
   return (
@@ -76,8 +93,10 @@ function PayoffChart({ baseline, scenario, startBalance }) {
       ))}
       {xTicks.map(m => (
         <g key={m}>
-          <line x1={x(m)} y1={T} x2={x(m)} y2={H - B} stroke="var(--border)" strokeWidth={m === 0 ? 0 : 0.5} opacity=".6" />
-          <text x={x(m)} y={H - B + 14} textAnchor={m === 0 ? 'start' : 'middle'} fontSize="10" fill="var(--muted)">{xLabel(m)}</text>
+          <line x1={x(m)} y1={T} x2={x(m)} y2={H - B} stroke="var(--border)"
+            strokeWidth={m === 0 ? (minX < 0 ? 1.5 : 0) : 0.5} opacity={m === 0 ? 1 : 0.6} />
+          <text x={x(m)} y={H - B + 14} textAnchor={m === 0 && minX === 0 ? 'start' : 'middle'}
+            fontSize="10" fill="var(--muted)">{xLabel(m)}</text>
         </g>
       ))}
       <path d={path(baseline.points)} fill="none" stroke="var(--muted)" strokeWidth="2"
@@ -85,6 +104,19 @@ function PayoffChart({ baseline, scenario, startBalance }) {
       {scenario && (
         <path d={path(scenario.points)} fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinejoin="round" />
       )}
+      {/* payments actually made: a trail behind today showing real progress, so
+          drift from the plan is visible rather than implied */}
+      {actual.length > 1 && (
+        <path
+          d={actual.map((p, i) => `${i ? 'L' : 'M'}${x(p.m).toFixed(1)},${y(p.balance).toFixed(1)}`).join(' ')}
+          fill="none" stroke="var(--good, #4ade80)" strokeWidth="1.5" opacity=".5" strokeLinejoin="round"
+        />
+      )}
+      {actual.map(p => (
+        <circle key={p.month} cx={x(p.m)} cy={y(p.balance)} r="3.5" fill="var(--good, #4ade80)">
+          <title>{`${p.month}: ${fmt(p.balance)} owed`}</title>
+        </circle>
+      ))}
       <g fontSize="11">
         <circle cx={L + 4} cy={10} r="4" fill="var(--muted)" />
         <text x={L + 14} y={14} fill="var(--soft)">Current plan</text>
@@ -92,6 +124,12 @@ function PayoffChart({ baseline, scenario, startBalance }) {
           <>
             <circle cx={L + 104} cy={10} r="4" fill="var(--accent)" />
             <text x={L + 114} y={14} fill="var(--soft)">With extra payments</text>
+          </>
+        )}
+        {actual.length > 0 && (
+          <>
+            <circle cx={L + (scenario ? 244 : 104)} cy={10} r="4" fill="var(--good, #4ade80)" />
+            <text x={L + (scenario ? 254 : 114)} y={14} fill="var(--soft)">Payments made</text>
           </>
         )}
       </g>
@@ -106,6 +144,14 @@ export default function LoanPanel({ account, refresh }) {
 
   const balance = Math.max(0, -account.balance); // amount owed, cents
   const ready = account.apr != null && account.loanMonths != null && balance > 0;
+
+  // month-end balances already recorded, placed at negative offsets so they land
+  // behind "Now" on the chart
+  const now = new Date();
+  const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const actual = (account.history ?? [])
+    .map(h => ({ month: h.month, m: monthOffset(h.month, thisMonth), balance: Math.max(0, -h.balance) }))
+    .filter(p => p.m <= 0);
 
   let payment = null, baseline = null, scenario = null, extra = 0, lump = 0;
   if (ready) {
@@ -141,7 +187,7 @@ export default function LoanPanel({ account, refresh }) {
       {ready && baseline && (
         <div className="loan-body">
           <div className="loan-chart-area">
-            <PayoffChart baseline={baseline} scenario={scenario} startBalance={balance} />
+            <PayoffChart baseline={baseline} scenario={scenario} startBalance={balance} actual={actual} />
           </div>
           <div className="loan-side">
             <div className="loan-col">

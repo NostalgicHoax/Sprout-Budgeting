@@ -442,6 +442,7 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
    tracks would misalign columns between rows. */
 .txn-grid {
   grid-template-columns:
+    28px                   /* select */
     minmax(62px, 0.5fr)    /* date — always fully visible */
     minmax(88px, 1.4fr)    /* payee */
     minmax(88px, 1.4fr)    /* category */
@@ -451,6 +452,7 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 }
 .txn-grid.with-account {
   grid-template-columns:
+    28px
     minmax(62px, 0.5fr)
     minmax(66px, 1fr)      /* account */
     minmax(76px, 1.3fr)
@@ -459,6 +461,30 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
     minmax(84px, 0.7fr)
     minmax(84px, 0.7fr);
 }
+/* the checkbox column stays visually quiet until the row is hovered or picked,
+   so the register doesn't read as a form */
+.sel-cell { display: flex; align-items: center; justify-content: center; overflow: visible !important; }
+/* the base `input` rule is full-width with a border and padding, which would
+   render a checkbox as a stretched box — same override as .editor-options */
+.sel-cell input[type="checkbox"] {
+  width: auto; flex: none; margin: 0; padding: 0;
+  background: none; border: none; border-radius: 0;
+  cursor: pointer; accent-color: var(--accent);
+}
+.txn-grid.row .sel-cell input { opacity: 0; transition: opacity .12s; }
+.txn-grid.row:hover .sel-cell input,
+.txn-grid.row.selected .sel-cell input,
+.txn-grid.row .sel-cell input:focus-visible { opacity: 1; }
+.selection-bar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: #16181d;
+  border-bottom: 1px solid var(--row-border);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.selection-count { font-size: 13px; font-weight: 600; }
+.selection-total { font-weight: 400; color: var(--muted); }
+.selection-bar .btn-danger { margin-left: auto; }
 .txn-grid.row { padding-top: 8px; padding-bottom: 8px; font-weight: 400; }
 /* single-line cells: truncate letter by letter instead of wrapping */
 .txn-grid.row:not(.editor) > div,
@@ -677,6 +703,17 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 .menu-item.static:hover { background: transparent; color: var(--muted); }
 .menu-check { color: var(--accent); }
 .menu-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+/* the account menu is anchored to its button rather than the sidebar, so it
+   overrides .budget-menu's fixed left/right */
+.acct-menu { right: auto; }
+.menu-item.danger { color: var(--red); }
+.menu-item.danger:hover { background: rgba(224, 96, 95, .12); color: var(--red); }
+.menu-item.static { font-size: 11px; line-height: 1.4; white-space: normal; }
+.delete-modal { width: 440px; }
+.impact-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.impact-list li { font-size: 13px; color: var(--soft); line-height: 1.45; }
+.impact-list li.warn { color: var(--red); }
+.impact-list strong { color: var(--bright); font-weight: 600; }
 
 /* ============ auth screen ============ */
 .auth-screen { display: flex; align-items: center; justify-content: center; height: 100vh; }

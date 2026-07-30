@@ -8,7 +8,7 @@ import { claimToken, listExternalAccounts, syncConnection } from './sync.js';
 import { allPayeeCategories, forgetCategory, recordChoice } from './payees.js';
 import {
   buildState, currentMonth, shiftMonth, setAssigned, coverOverspending, assignLastMonth,
-  moveMoney, fundGoals,
+  moveMoney, fundGoals, principalOf,
 } from './budget.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -115,6 +115,87 @@ app.patch('/api/accounts/:id', (req, res) => {
     .run(name, closed, apr, loan_months, acct.id);
   req.db.prepare('UPDATE categories SET name = ? WHERE linked_account_id = ?').run(name, acct.id);
   res.json({ ok: true });
+});
+
+/** Everything deleting this account would take with it. Drives the confirmation
+ *  screen, so the user sees the damage before agreeing to it rather than after. */
+function deletionImpact(db, acct) {
+  const own = db.prepare(
+    'SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN is_income = 1 THEN amount ELSE 0 END), 0) income FROM transactions WHERE account_id = ?'
+  ).get(acct.id);
+  // transfers whose other half lives on an account that is staying: those rows
+  // survive as uncategorized spending, so the surviving balance doesn't move
+  const stranded = db.prepare(`
+    SELECT a.name, COUNT(*) n, COALESCE(SUM(t.amount), 0) total
+    FROM transactions t JOIN accounts a ON a.id = t.account_id
+    WHERE t.transfer_account_id = ? AND t.account_id != ?
+    GROUP BY a.id ORDER BY a.name
+  `).all(acct.id, acct.id);
+  const category = db.prepare(
+    'SELECT id, name FROM categories WHERE linked_account_id = ?'
+  ).get(acct.id);
+  const assigned = category
+    ? db.prepare('SELECT COALESCE(SUM(amount), 0) n FROM assignments WHERE category_id = ?').get(category.id).n
+    : 0;
+  const connection = acct.connection_id
+    ? db.prepare('SELECT name FROM connections WHERE id = ?').get(acct.connection_id)
+    : null;
+  return {
+    name: acct.name,
+    transactions: own.n,
+    // removing a starting balance or income row takes that money back out of
+    // Ready to Assign, which is the surprise most worth showing up front
+    incomeRemoved: own.income,
+    stranded: stranded.map(s => ({ account: s.name, count: s.n, total: s.total })),
+    category: category ? { name: category.name, assigned } : null,
+    connection: connection?.name ?? null,
+  };
+}
+
+app.get('/api/accounts/:id/deletion-impact', (req, res) => {
+  const acct = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id);
+  if (!acct) return res.status(404).json({ error: 'Account not found' });
+  res.json(deletionImpact(req.db, acct));
+});
+
+// Deleting an account is the one irreversible action in the app, so the cascade
+// is explicit rather than left to foreign keys: transfers to accounts that are
+// staying keep their side of the story, and the credit card's payment category
+// releases whatever was assigned to it back to Ready to Assign.
+app.delete('/api/accounts/:id', (req, res) => {
+  const acct = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id);
+  if (!acct) return res.status(404).json({ error: 'Account not found' });
+  const impact = deletionImpact(req.db, acct);
+
+  const run = req.db.transaction(() => {
+    // The money really did leave the surviving account, so its row stays and its
+    // balance doesn't move — it just loses the counterpart and lands in
+    // Uncategorized to be re-filed. `interest` is deliberately preserved: on a
+    // loan payment it is what keeps the loan balance right, and clearing it
+    // would silently overpay the principal.
+    req.db.prepare(`
+      UPDATE transactions
+      SET is_transfer = 0, transfer_account_id = NULL, transfer_pair_id = NULL,
+          payee = CASE WHEN payee = '' THEN ? ELSE payee END
+      WHERE transfer_account_id = ? AND account_id != ?
+    `).run(acct.name, acct.id, acct.id);
+
+    req.db.prepare('DELETE FROM transactions WHERE account_id = ?').run(acct.id);
+
+    const category = req.db.prepare('SELECT id FROM categories WHERE linked_account_id = ?').get(acct.id);
+    if (category) {
+      // assignments have to go before the category: leaving them would strand
+      // money against a row nothing can reach
+      req.db.prepare('DELETE FROM assignments WHERE category_id = ?').run(category.id);
+      req.db.prepare('DELETE FROM payee_categories WHERE category_id = ?').run(category.id);
+      req.db.prepare('UPDATE transactions SET category_id = NULL WHERE category_id = ?').run(category.id);
+      req.db.prepare('DELETE FROM categories WHERE id = ?').run(category.id);
+    }
+    req.db.prepare('DELETE FROM accounts WHERE id = ?').run(acct.id);
+  });
+
+  run();
+  res.json({ ok: true, ...impact });
 });
 
 // ---------- category groups ----------
@@ -312,9 +393,93 @@ app.post('/api/transactions', (req, res) => {
   res.json({ id: Number(lastInsertRowid) });
 });
 
+/** True for either side of a loan payment: the loan side carries the interest
+ *  slice, the paying side is the row linked to it. */
+function isLoanPayment(db, txn) {
+  if (txn.interest != null) return true;
+  if (txn.transfer_pair_id == null) return false;
+  const pair = db.prepare('SELECT interest FROM transactions WHERE id = ?').get(txn.transfer_pair_id);
+  return pair?.interest != null;
+}
+
+/** What a loan payment does to the loan, given the balance owed right now.
+ *  Interest is this month's accrual on the outstanding principal; the rest pays
+ *  the principal down. A final payment can't reduce principal below zero. */
+export function splitLoanPayment(owed, aprPct, amount) {
+  const interest = Math.round(owed * (aprPct / 100 / 12));
+  if (amount <= interest) return null;             // never amortizes
+  const principal = Math.min(amount - interest, owed);
+  return { interest: amount - principal, principal };
+}
+
+// A loan payment is one entry the user records, mirrored across both accounts
+// like a transfer — but only the principal slice moves the loan balance, and the
+// term drops by one payment so the derived monthly payment stays put. Deriving
+// the payment from (balance, apr, months) is only stable if all three stay in
+// step; that is what a plain transfer got wrong.
+app.post('/api/loan-payment', (req, res) => {
+  const { fromAccountId, loanAccountId, amount, date, memo = '', categoryId = null } = req.body ?? {};
+  if (!DATE_RE.test(date || '')) return bad(res, 'Choose a valid date');
+  if (!Number.isInteger(amount) || amount <= 0) return bad(res, 'Enter an amount greater than zero');
+
+  const from = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(fromAccountId);
+  if (!from) return bad(res, 'Choose the account paying the loan');
+  if (from.type === 'loan') return bad(res, 'Loan payments come from a cash or credit account');
+  const loan = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(loanAccountId);
+  if (!loan || loan.type !== 'loan') return bad(res, 'Choose a loan account');
+  if (loan.apr == null) return bad(res, 'Set the loan APR under Loan Details first');
+
+  const rows = req.db.prepare('SELECT amount, interest FROM transactions WHERE account_id = ?').all(loan.id);
+  const owed = -rows.reduce((s, t) => s + principalOf(t), 0);
+  if (owed <= 0) return bad(res, 'This loan is already paid off');
+
+  const split = splitLoanPayment(owed, loan.apr, amount);
+  if (!split) return bad(res, "That payment doesn't cover this month's interest");
+
+  let category_id = null;
+  if (categoryId != null) {
+    const cat = req.db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId);
+    if (!cat) return bad(res, 'Choose a category');
+    category_id = cat.id;
+  }
+
+  const write = req.db.transaction(() => {
+    // paying side: the full amount left this account, categorized as real
+    // spending when a category is given, budget-neutral otherwise
+    const { lastInsertRowid: fromId } = req.db.prepare(`
+      INSERT INTO transactions (account_id, date, payee, category_id, memo, amount, is_transfer,
+        cleared, transfer_account_id)
+      VALUES (?, ?, '', ?, ?, ?, ?, 1, ?)
+    `).run(from.id, date, category_id, String(memo), -amount, category_id == null ? 1 : 0, loan.id);
+
+    // loan side: records the full amount paid, but `interest` tells the balance
+    // math to credit principal only
+    const { lastInsertRowid: loanId } = req.db.prepare(`
+      INSERT INTO transactions (account_id, date, payee, memo, amount, is_transfer, cleared,
+        transfer_account_id, transfer_pair_id, interest)
+      VALUES (?, ?, '', ?, ?, 1, 1, ?, ?, ?)
+    `).run(loan.id, date, String(memo), amount, from.id, fromId, split.interest);
+    req.db.prepare('UPDATE transactions SET transfer_pair_id = ? WHERE id = ?').run(loanId, fromId);
+
+    if (loan.loan_months != null && loan.loan_months > 0) {
+      req.db.prepare('UPDATE accounts SET loan_months = loan_months - 1 WHERE id = ?').run(loan.id);
+    }
+    return Number(loanId);
+  });
+
+  const id = write();
+  res.json({ id, interest: split.interest, principal: split.principal });
+});
+
 app.patch('/api/transactions/:id', (req, res) => {
   const txn = req.db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
   if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+  // Editing a loan payment would have to re-split interest and step the term
+  // back, and the generic update path does neither — it would silently drop the
+  // interest and leave the balance wrong. Refuse instead.
+  if (isLoanPayment(req.db, txn)) {
+    return bad(res, 'Delete this loan payment and record it again to change it');
+  }
   const f = txnFields(req.db, req.body, res);
   if (!f) return;
   req.db.prepare(`
@@ -347,14 +512,42 @@ app.patch('/api/transactions/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/transactions/:id', (req, res) => {
-  const txn = req.db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
-  req.db.prepare('DELETE FROM transactions WHERE id = ?').run(req.params.id);
-  if (txn?.transfer_pair_id) {
-    // a transfer is one logical operation — removing one side removes both
-    req.db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.transfer_pair_id);
+/** Removes one transaction and everything that logically travels with it: the
+ *  mirror side of a transfer, and the loan term a payment consumed. Returns how
+ *  many rows went. Safe to call for an id that is already gone, which happens in
+ *  a bulk delete when both sides of a transfer are selected. */
+function deleteTransaction(db, id) {
+  const txn = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+  if (!txn) return 0;
+  // undoing a loan payment gives the term its payment back, so balance and
+  // months stay in step and the derived monthly payment holds steady
+  if (isLoanPayment(db, txn)) {
+    const loanId = txn.interest != null ? txn.account_id : txn.transfer_account_id;
+    db.prepare(
+      'UPDATE accounts SET loan_months = loan_months + 1 WHERE id = ? AND loan_months IS NOT NULL'
+    ).run(loanId);
   }
+  let n = db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.id).changes;
+  if (txn.transfer_pair_id) {
+    // a transfer is one logical operation — removing one side removes both
+    n += db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.transfer_pair_id).changes;
+  }
+  return n;
+}
+
+app.delete('/api/transactions/:id', (req, res) => {
+  deleteTransaction(req.db, req.params.id);
   res.json({ ok: true });
+});
+
+// Bulk delete from the register's multi-select. One transaction so a failure
+// part-way cannot leave a transfer half-removed or a loan term over-credited.
+app.post('/api/transactions/bulk-delete', (req, res) => {
+  const { ids } = req.body ?? {};
+  if (!Array.isArray(ids) || ids.length === 0) return bad(res, 'Nothing selected');
+  if (!ids.every(id => Number.isInteger(id))) return bad(res, 'invalid ids');
+  const run = req.db.transaction(() => ids.reduce((n, id) => n + deleteTransaction(req.db, id), 0));
+  res.json({ deleted: run() });
 });
 
 // ---------- reports ----------
