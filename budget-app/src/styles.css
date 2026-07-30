@@ -703,6 +703,17 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 .menu-item.static:hover { background: transparent; color: var(--muted); }
 .menu-check { color: var(--accent); }
 .menu-divider { height: 1px; background: var(--border); margin: 6px 4px; }
+/* the account menu is anchored to its button rather than the sidebar, so it
+   overrides .budget-menu's fixed left/right */
+.acct-menu { right: auto; }
+.menu-item.danger { color: var(--red); }
+.menu-item.danger:hover { background: rgba(224, 96, 95, .12); color: var(--red); }
+.menu-item.static { font-size: 11px; line-height: 1.4; white-space: normal; }
+.delete-modal { width: 440px; }
+.impact-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.impact-list li { font-size: 13px; color: var(--soft); line-height: 1.45; }
+.impact-list li.warn { color: var(--red); }
+.impact-list strong { color: var(--bright); font-weight: 600; }
 
 /* ============ auth screen ============ */
 .auth-screen { display: flex; align-items: center; justify-content: center; height: 100vh; }

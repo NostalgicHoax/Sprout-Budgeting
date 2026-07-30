@@ -117,6 +117,87 @@ app.patch('/api/accounts/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+/** Everything deleting this account would take with it. Drives the confirmation
+ *  screen, so the user sees the damage before agreeing to it rather than after. */
+function deletionImpact(db, acct) {
+  const own = db.prepare(
+    'SELECT COUNT(*) n, COALESCE(SUM(CASE WHEN is_income = 1 THEN amount ELSE 0 END), 0) income FROM transactions WHERE account_id = ?'
+  ).get(acct.id);
+  // transfers whose other half lives on an account that is staying: those rows
+  // survive as uncategorized spending, so the surviving balance doesn't move
+  const stranded = db.prepare(`
+    SELECT a.name, COUNT(*) n, COALESCE(SUM(t.amount), 0) total
+    FROM transactions t JOIN accounts a ON a.id = t.account_id
+    WHERE t.transfer_account_id = ? AND t.account_id != ?
+    GROUP BY a.id ORDER BY a.name
+  `).all(acct.id, acct.id);
+  const category = db.prepare(
+    'SELECT id, name FROM categories WHERE linked_account_id = ?'
+  ).get(acct.id);
+  const assigned = category
+    ? db.prepare('SELECT COALESCE(SUM(amount), 0) n FROM assignments WHERE category_id = ?').get(category.id).n
+    : 0;
+  const connection = acct.connection_id
+    ? db.prepare('SELECT name FROM connections WHERE id = ?').get(acct.connection_id)
+    : null;
+  return {
+    name: acct.name,
+    transactions: own.n,
+    // removing a starting balance or income row takes that money back out of
+    // Ready to Assign, which is the surprise most worth showing up front
+    incomeRemoved: own.income,
+    stranded: stranded.map(s => ({ account: s.name, count: s.n, total: s.total })),
+    category: category ? { name: category.name, assigned } : null,
+    connection: connection?.name ?? null,
+  };
+}
+
+app.get('/api/accounts/:id/deletion-impact', (req, res) => {
+  const acct = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id);
+  if (!acct) return res.status(404).json({ error: 'Account not found' });
+  res.json(deletionImpact(req.db, acct));
+});
+
+// Deleting an account is the one irreversible action in the app, so the cascade
+// is explicit rather than left to foreign keys: transfers to accounts that are
+// staying keep their side of the story, and the credit card's payment category
+// releases whatever was assigned to it back to Ready to Assign.
+app.delete('/api/accounts/:id', (req, res) => {
+  const acct = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(req.params.id);
+  if (!acct) return res.status(404).json({ error: 'Account not found' });
+  const impact = deletionImpact(req.db, acct);
+
+  const run = req.db.transaction(() => {
+    // The money really did leave the surviving account, so its row stays and its
+    // balance doesn't move — it just loses the counterpart and lands in
+    // Uncategorized to be re-filed. `interest` is deliberately preserved: on a
+    // loan payment it is what keeps the loan balance right, and clearing it
+    // would silently overpay the principal.
+    req.db.prepare(`
+      UPDATE transactions
+      SET is_transfer = 0, transfer_account_id = NULL, transfer_pair_id = NULL,
+          payee = CASE WHEN payee = '' THEN ? ELSE payee END
+      WHERE transfer_account_id = ? AND account_id != ?
+    `).run(acct.name, acct.id, acct.id);
+
+    req.db.prepare('DELETE FROM transactions WHERE account_id = ?').run(acct.id);
+
+    const category = req.db.prepare('SELECT id FROM categories WHERE linked_account_id = ?').get(acct.id);
+    if (category) {
+      // assignments have to go before the category: leaving them would strand
+      // money against a row nothing can reach
+      req.db.prepare('DELETE FROM assignments WHERE category_id = ?').run(category.id);
+      req.db.prepare('DELETE FROM payee_categories WHERE category_id = ?').run(category.id);
+      req.db.prepare('UPDATE transactions SET category_id = NULL WHERE category_id = ?').run(category.id);
+      req.db.prepare('DELETE FROM categories WHERE id = ?').run(category.id);
+    }
+    req.db.prepare('DELETE FROM accounts WHERE id = ?').run(acct.id);
+  });
+
+  run();
+  res.json({ ok: true, ...impact });
+});
+
 // ---------- category groups ----------
 app.post('/api/groups', (req, res) => {
   if (!req.body.name?.trim()) return bad(res, 'Enter a name');

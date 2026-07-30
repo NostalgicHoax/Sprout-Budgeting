@@ -5,12 +5,15 @@ import { api } from '../api.js';
 import LoanPanel from './LoanPanel.jsx';
 import ConfirmButton from './ConfirmButton.jsx';
 
-export default function AccountView({ state, accountId, categoryId, refresh }) {
+export default function AccountView({ state, accountId, categoryId, refresh, onAccountDeleted }) {
   const [txns, setTxns] = useState(null);
   const [payees, setPayees] = useState([]);
   const [payeeCats, setPayeeCats] = useState(new Map());
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [acctMenu, setAcctMenu] = useState(null);
+  const [renaming, setRenaming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [selected, setSelected] = useState(() => new Set());
   // anchor for shift-click range selection, so a long run can be picked without
   // ticking every box
@@ -111,10 +114,44 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
           <div className="balance-label">{isCategory ? 'Net Activity' : isAll ? 'Total Balance' : 'Balance'}</div>
         </div>
         <div className="spacer" />
+        {account && (
+          <button
+            className="btn btn-ghost"
+            onClick={e => setAcctMenu(e.currentTarget.getBoundingClientRect())}
+            title="Rename, close, or delete this account"
+          >
+            ⚙ Account <span className="rta-caret">▾</span>
+          </button>
+        )}
         <button className="btn btn-accent" onClick={() => { setAdding(true); setEditingId(null); }}>
           ＋ Add Transaction
         </button>
       </header>
+
+      {acctMenu && account && (
+        <AccountMenu
+          anchor={acctMenu}
+          account={account}
+          onClose={() => setAcctMenu(null)}
+          onRename={() => { setAcctMenu(null); setRenaming(true); }}
+          onDelete={() => { setAcctMenu(null); setDeleting(true); }}
+          onToggleClosed={async () => {
+            await api(`/api/accounts/${account.id}`, { method: 'PATCH', body: { closed: !account.closed } });
+            setAcctMenu(null);
+            await refresh();
+          }}
+        />
+      )}
+      {renaming && account && (
+        <RenameAccount account={account} onClose={() => setRenaming(false)} onDone={mutated} />
+      )}
+      {deleting && account && (
+        <DeleteAccount
+          account={account}
+          onClose={() => setDeleting(false)}
+          onDone={async () => { setDeleting(false); await refresh(); onAccountDeleted?.(); }}
+        />
+      )}
 
       {account?.type === 'loan' && <LoanPanel key={account.id} account={account} refresh={refresh} />}
 
@@ -212,6 +249,146 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
       </div>
       </div>
     </main>
+  );
+}
+
+function AccountMenu({ anchor, account, onClose, onRename, onDelete, onToggleClosed }) {
+  const style = {
+    position: 'fixed',
+    top: anchor.bottom + 6,
+    left: Math.max(12, Math.min(anchor.left, window.innerWidth - 236)),
+    width: 224,
+  };
+  return (
+    <>
+      <div className="menu-overlay" onClick={onClose} />
+      <div className="budget-menu acct-menu" style={style}>
+        <div className="menu-item" onClick={onRename}>✏️ Rename…</div>
+        <div className="menu-item" onClick={onToggleClosed}>
+          {account.closed ? '📂 Reopen account' : '📦 Close account'}
+        </div>
+        <div className="menu-divider" />
+        <div className="menu-item danger" onClick={onDelete}>🗑 Delete account…</div>
+        <div className="menu-item static">
+          {account.closed
+            ? 'Reopening puts it back in the sidebar.'
+            : 'Closing hides it but keeps every transaction.'}
+        </div>
+      </div>
+    </>
+  );
+}
+
+function RenameAccount({ account, onClose, onDone }) {
+  const [name, setName] = useState(account.name);
+  const [error, setError] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save(e) {
+    e.preventDefault();
+    if (!name.trim()) { setError('Enter a name'); return; }
+    setSaving(true);
+    try {
+      await api(`/api/accounts/${account.id}`, { method: 'PATCH', body: { name: name.trim() } });
+      await onDone();
+      onClose();
+    } catch (err) { setError(err.message); setSaving(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal" onClick={e => e.stopPropagation()} onSubmit={save}>
+        <h3>Rename account</h3>
+        <label>
+          Name
+          <input autoFocus value={name} onChange={e => setName(e.target.value)} />
+        </label>
+        {account.type === 'credit' && (
+          <p className="modal-hint">Its payment category is renamed to match.</p>
+        )}
+        {error && <p className="soft-error">{error}</p>}
+        <div className="popover-actions">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-accent btn-sm" disabled={saving}>Save</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+/** Deleting an account can't be undone, so this shows what goes with it before
+ *  asking — transaction count, the money it takes back out of Ready to Assign,
+ *  and which other accounts keep a re-filed row. */
+function DeleteAccount({ account, onClose, onDone }) {
+  const [impact, setImpact] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    api(`/api/accounts/${account.id}/deletion-impact`).then(setImpact).catch(e => setError(e.message));
+  }, [account.id]);
+
+  async function confirm() {
+    setBusy(true);
+    try {
+      await api(`/api/accounts/${account.id}`, { method: 'DELETE' });
+      await onDone();
+    } catch (e) { setError(e.message); setBusy(false); }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal delete-modal" onClick={e => e.stopPropagation()}>
+        <h3>Delete “{account.name}”?</h3>
+        {!impact && !error && <p className="modal-hint">Working out what this affects…</p>}
+        {impact && (
+          <>
+            <ul className="impact-list">
+              <li>
+                <strong>{impact.transactions}</strong> transaction{impact.transactions === 1 ? '' : 's'} on this
+                account will be deleted.
+              </li>
+              {impact.incomeRemoved !== 0 && (
+                <li className="warn">
+                  Ready to Assign drops by <strong>{fmt(Math.abs(impact.incomeRemoved))}</strong>, because income
+                  recorded here goes too.
+                </li>
+              )}
+              {impact.category && (
+                <li>
+                  The payment category <strong>{impact.category.name}</strong> is removed
+                  {impact.category.assigned !== 0 && (
+                    <> and the <strong>{fmt(impact.category.assigned)}</strong> assigned to it returns to Ready to Assign</>
+                  )}.
+                </li>
+              )}
+              {impact.stranded.map(s => (
+                <li key={s.account}>
+                  <strong>{s.count}</strong> transfer{s.count === 1 ? '' : 's'} on <strong>{s.account}</strong> stay
+                  put as uncategorized — that balance doesn’t change.
+                </li>
+              ))}
+              {impact.connection && (
+                <li>It stops syncing from <strong>{impact.connection}</strong>.</li>
+              )}
+            </ul>
+            <p className="modal-hint">
+              This can’t be undone. To keep the history instead, close the account.
+            </p>
+          </>
+        )}
+        {error && <p className="soft-error">{error}</p>}
+        <div className="popover-actions">
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
+          <ConfirmButton
+            label="Delete account"
+            confirmLabel="Yes, delete it"
+            disabled={!impact || busy}
+            onConfirm={confirm}
+          />
+        </div>
+      </div>
+    </div>
   );
 }
 
