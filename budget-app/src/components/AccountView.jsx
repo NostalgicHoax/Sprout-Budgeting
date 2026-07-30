@@ -228,7 +228,20 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
               showAccount={showAccountCol}
               txn={t}
               refresh={refresh}
-              onSave={async body => { await api(`/api/transactions/${t.id}`, { method: 'PATCH', body }); await mutated(); setEditingId(null); }}
+              onSave={async body => {
+                if (body.kind === 'loan-payment') {
+                  // PATCH can't turn a row into a loan payment — that needs the
+                  // interest split and the term step. Record the payment first,
+                  // then drop the old row: if the first call fails nothing is
+                  // lost, whereas deleting first could lose the transaction.
+                  await api('/api/loan-payment', { method: 'POST', body });
+                  await api(`/api/transactions/${t.id}`, { method: 'DELETE' });
+                } else {
+                  await api(`/api/transactions/${t.id}`, { method: 'PATCH', body });
+                }
+                await mutated();
+                setEditingId(null);
+              }}
               onCancel={() => setEditingId(null)}
               onDelete={async () => { await remove(t.id); setEditingId(null); }}
             />
@@ -590,6 +603,7 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
   const [autoFilled, setAutoFilled] = useState(false);
 
   const memory = payeeCats?.get(payeeKey(payee));
+  const loanAccounts = state.accounts.filter(a => a.type === 'loan' && !a.closed);
   const allCats = state.groups.flatMap(g => g.categories);
   const suggested = (memory?.suggestions ?? [])
     .map(id => allCats.find(c => c.id === id))
@@ -619,6 +633,10 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
       if (Number(transferAccountId) === Number(accountId)) { setError('A transfer needs two different accounts'); return; }
     }
     if (catValue === 'loan-payment') {
+      if (!loanAccounts.length) {
+        setError('Add a loan account first, then record payments against it');
+        return;
+      }
       if (!transferAccountId) { setError('Choose the loan you paid'); return; }
       if (out <= 0) { setError('Enter the amount you paid as an outflow'); return; }
       try {
@@ -669,10 +687,11 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
               onChange={e => setTransferAccountId(e.target.value)}
               title="The loan this payment goes toward"
             >
-              <option value="" disabled>🏦 Pay loan…</option>
-              {state.accounts
-                .filter(a => a.type === 'loan' && !a.closed)
-                .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+              {/* loans only — a loan payment has nowhere else to go */}
+              <option value="" disabled>
+                {loanAccounts.length ? '🏦 Pay loan…' : 'No loan accounts yet — add one first'}
+              </option>
+              {loanAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
             </select>
           ) : catValue === 'transfer' ? (
             <select
@@ -716,11 +735,10 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
             )}
             <option value="income">💵 Inflow: Ready to Assign</option>
             <option value="transfer">🔁 Transfer / Card Payment</option>
-            {/* only for new entries: re-splitting interest and stepping the term
-                back on an edit isn't supported, so the server rejects it */}
-            {!txn && state.accounts.some(a => a.type === 'loan' && !a.closed) && (
-              <option value="loan-payment">🏦 Loan Payment</option>
-            )}
+            {/* always offered, like Transfer. Hiding it until a loan account
+                existed meant nobody could find it, and the picker below explains
+                itself when there's nothing to pay yet. */}
+            <option value="loan-payment">🏦 Loan Payment</option>
             <option value="uncategorized">Uncategorized</option>
             <option value="new-category">＋ New category…</option>
             {state.groups.map(g => (
