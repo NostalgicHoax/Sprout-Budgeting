@@ -1,0 +1,21 @@
+services:
+  sprout:
+    build:
+      context: .
+    image: sprout-budgeting:latest
+    container_name: sprout
+    restart: unless-stopped
+    ports:
+      # host:container — change only the left number if 3178 is taken.
+      - "3178:3178"
+    environment:
+      # The server decides what "this month" is from its own clock, so set this
+      # to your timezone or budgets will roll over at the wrong time.
+      TZ: ${TZ:-UTC}
+    volumes:
+      # Your entire budget lives here and cannot be recovered without your
+      # password. Back this volume up.
+      - sprout-data:/data
+
+volumes:
+  sprout-data:

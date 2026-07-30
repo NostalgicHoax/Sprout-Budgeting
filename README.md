@@ -105,6 +105,43 @@ sent.)
 Tip: when you create your first budget, tick **Start with demo data** to explore
 with fake numbers before committing to your real ones.
 
+### Or run it with Docker
+
+If you'd rather not install Node.js, and you have
+[Docker](https://docs.docker.com/get-started/get-docker/) installed:
+
+```
+docker compose up -d
+```
+
+That builds the app and starts it in the background at
+**http://localhost:3178**. To follow along while it starts, or to check on it
+later:
+
+```
+docker compose logs -f
+```
+
+Set your timezone so months roll over at the right time — Sprout uses the
+container's clock to decide what "this month" means. Either put it in a `.env`
+file next to `docker-compose.yml`:
+
+```
+TZ=America/Chicago
+```
+
+...or edit the `TZ` line in `docker-compose.yml` directly.
+
+To update after pulling new code, rebuild and restart — your budget is untouched:
+
+```
+docker compose up -d --build
+```
+
+To stop it: `docker compose down`. That leaves your data alone. **Do not run
+`docker compose down -v`** — the `-v` deletes the volume holding your budgets,
+and there is no way to get them back.
+
 ---
 
 ## Questions
@@ -117,8 +154,19 @@ syncing is a convenience, not a requirement.
 **Can I use it on my phone?** It runs in a web browser, so it works on any device
 that can reach the computer you installed it on.
 
-**Is my data backed up?** That part's on you. Your budget lives in
-`budget-app/server/data/` — copy that folder somewhere safe now and then.
+**Is my data backed up?** That part's on you. If you started it with `npm start`,
+your budget lives in `budget-app/server/data/` — copy that folder somewhere safe
+now and then. Under Docker it's in a volume named `sprout-data`; to pull a copy
+out into the current folder:
+
+```
+docker run --rm -v sprout-data:/data -v "$PWD:/backup" busybox tar czf /backup/sprout-backup.tar.gz -C /data .
+```
+
+**Can I put it behind a real domain or HTTPS?** Yes — point a reverse proxy at
+port 3178 and Sprout picks up the hostname on its own, including for passkeys.
+Passkeys and Windows Hello need HTTPS (or plain `localhost`) to work at all, so
+if you're reaching it by IP address, expect to sign in with your password.
 
 ---
 
