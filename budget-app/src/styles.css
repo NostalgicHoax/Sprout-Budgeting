@@ -710,6 +710,44 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 .menu-item.danger:hover { background: rgba(224, 96, 95, .12); color: var(--red); }
 .menu-item.static { font-size: 11px; line-height: 1.4; white-space: normal; }
 .delete-modal { width: 440px; }
+
+/* ============ what's new ============ */
+.menu-version { font-size: 11px; color: var(--muted2); font-variant-numeric: tabular-nums; }
+.news-badge {
+  font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  background: var(--accent); color: #0d1117;
+  padding: 2px 5px; border-radius: 4px;
+}
+/* rides alongside the caret on the sidebar head, so a release is noticeable
+   without opening the menu */
+.news-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); margin-right: 5px; vertical-align: middle;
+}
+.changelog-modal { width: 520px; max-height: 76vh; }
+.changelog-head { display: flex; align-items: baseline; gap: 10px; }
+.changelog-head h3 { margin: 0; }
+.changelog-version { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.changelog-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 22px;
+  padding-right: 4px;
+}
+.changelog-release { display: flex; flex-direction: column; gap: 4px; }
+.changelog-release-head { display: flex; align-items: center; gap: 8px; }
+.changelog-release-version {
+  font-size: 12px; font-weight: 700; color: var(--bright);
+  font-variant-numeric: tabular-nums;
+}
+.changelog-new {
+  font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  background: var(--accent); color: #0d1117; padding: 1px 5px; border-radius: 4px;
+}
+.changelog-date { font-size: 11px; color: var(--muted2); margin-left: auto; }
+.changelog-title { margin: 0 0 6px; font-size: 15px; color: var(--bright); }
+.changelog-item { margin-bottom: 10px; }
+.changelog-item-heading { font-size: 13px; font-weight: 600; color: var(--soft); margin-bottom: 2px; }
+.changelog-item-body { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--muted); }
 .impact-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
 .impact-list li { font-size: 13px; color: var(--soft); line-height: 1.45; }
 .impact-list li.warn { color: var(--red); }

@@ -3,6 +3,8 @@ import { fmt, parseAmount } from '../money.js';
 import { api } from '../api.js';
 import SecurityModal from './SecurityModal.jsx';
 import ConnectionsModal from './ConnectionsModal.jsx';
+import ChangelogModal, { hasUnreadChangelog, markChangelogSeen, lastSeenVersion } from './ChangelogModal.jsx';
+import { APP_VERSION } from '../changelog.js';
 
 const GROUPS = [
   { key: 'cash', label: 'CASH', match: a => a.type === 'cash' && !a.closed },
@@ -25,7 +27,23 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   const [budgetModal, setBudgetModal] = useState(null); // 'new' | 'rename'
   const [showSecurity, setShowSecurity] = useState(false);
   const [showConnections, setShowConnections] = useState(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+  // read once on mount: opening What's New clears it, and it shouldn't flicker
+  // back on every re-render in between
+  const [unreadNews, setUnreadNews] = useState(hasUnreadChangelog);
   const [railed, setRailed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
+
+  const [changelogSince, setChangelogSince] = useState(null);
+
+  function openChangelog() {
+    // capture what they'd already read before marking it seen, or the modal
+    // would have nothing left to flag
+    setChangelogSince(lastSeenVersion());
+    setMenuOpen(false);
+    setShowChangelog(true);
+    markChangelogSeen();
+    setUnreadNews(false);
+  }
 
   const toggle = key => setCollapsed(c => ({ ...c, [key]: !c[key] }));
   const activeBudget = auth.budgets.find(b => b.id === auth.activeBudgetId);
@@ -85,7 +103,8 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
           <div className="sidebar-budget-name">{activeBudget?.name ?? 'Budget'}</div>
           <div className="sidebar-email">{auth.email}</div>
         </div>
-        <div className="head-caret">▾</div>
+        {/* without this the only hint of a new release is buried in the menu */}
+        <div className="head-caret">{unreadNews && <span className="news-dot" title="New in this version" />}▾</div>
         <button
           className="panel-toggle"
           title="Collapse sidebar"
@@ -123,6 +142,14 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
               🔐 Security
             </div>
             <div className="menu-item" onClick={signOut}>⏻ Sign Out</div>
+            <div className="menu-divider" />
+            <div className="menu-section">ABOUT</div>
+            <div className="menu-item" onClick={openChangelog}>
+              <span>🌱 What's New</span>
+              {unreadNews
+                ? <span className="news-badge">NEW</span>
+                : <span className="menu-version">{APP_VERSION}</span>}
+            </div>
           </div>
         </>
       )}
@@ -201,6 +228,7 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
       )}
 
       {showSecurity && <SecurityModal onClose={() => setShowSecurity(false)} />}
+      {showChangelog && <ChangelogModal since={changelogSince} onClose={() => setShowChangelog(false)} />}
       {showConnections && (
         <ConnectionsModal state={state} refresh={refresh} onClose={() => setShowConnections(false)} />
       )}
