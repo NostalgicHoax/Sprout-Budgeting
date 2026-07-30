@@ -1,0 +1,63 @@
+# Keeps the build context small, and — more importantly — makes sure live user
+# data, credentials and logs can never be captured in an image layer. Mirrors
+# the reasoning in .gitignore: databases, logs and env files are all secrets.
+
+# ---- dependencies & build output (rebuilt inside the image) ----
+**/node_modules
+**/dist
+**/build
+**/.vite
+**/.cache
+**/coverage
+
+# ---- live data: encrypted budgets, sessions, wrapped keys ----
+budget-app/server/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.db-journal
+**/*.sqlite
+**/*.sqlite3
+**/*.bak
+backups
+
+# ---- secrets & credentials ----
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+**/*.pfx
+**/*.token
+**/*.secret
+**/.npmrc
+**/.netrc
+
+# ---- logs (dev server output can capture SimpleFIN access URLs) ----
+**/*.log
+logs
+
+# ---- local tool state & VCS ----
+.git
+.gitignore
+.agents
+.claude
+.shipstudio
+.thumbnail
+
+# ---- user-uploaded / pasted content ----
+uploads
+
+# ---- repo material the running app doesn't need ----
+**/*.md
+Budget.dc.html
+support.js
+budget-app/test-*.mjs
+**/*Name clash*
+
+# ---- docker files themselves ----
+Dockerfile
+docker-compose.yml
+.dockerignore

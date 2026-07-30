@@ -1,0 +1,5 @@
+# These are consumed by Linux tooling inside the container build, so keep them
+# LF regardless of core.autocrlf on the machine that checked them out.
+Dockerfile         text eol=lf
+.dockerignore      text eol=lf
+docker-compose.yml text eol=lf
