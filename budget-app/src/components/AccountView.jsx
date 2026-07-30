@@ -11,6 +11,10 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
   const [payeeCats, setPayeeCats] = useState(new Map());
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [selected, setSelected] = useState(() => new Set());
+  // anchor for shift-click range selection, so a long run can be picked without
+  // ticking every box
+  const [lastClicked, setLastClicked] = useState(null);
 
   const isCategory = categoryId != null;
   const isAll = accountId === 'all';
@@ -34,6 +38,11 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // switching accounts or categories shows a different list; carrying a
+  // selection across would put rows the user can no longer see under the
+  // delete button
+  useEffect(() => { setSelected(new Set()); setLastClicked(null); }, [accountId, categoryId]);
+
   async function mutated() {
     await Promise.all([refresh(), load()]);
   }
@@ -43,7 +52,40 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
     await mutated();
   }
 
+  function toggle(id, index, shiftKey) {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (shiftKey && lastClicked != null) {
+        // extend from the anchor, matching the anchor's resulting state
+        const [lo, hi] = lastClicked < index ? [lastClicked, index] : [index, lastClicked];
+        const turningOn = !prev.has(id);
+        for (let i = lo; i <= hi; i++) {
+          const rowId = txns[i]?.id;
+          if (rowId == null) continue;
+          if (turningOn) next.add(rowId); else next.delete(rowId);
+        }
+      } else if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    setLastClicked(index);
+  }
+
+  async function deleteSelected() {
+    await api('/api/transactions/bulk-delete', { method: 'POST', body: { ids: [...selected] } });
+    setSelected(new Set());
+    setLastClicked(null);
+    setEditingId(null);
+    await mutated();
+  }
+
   if (!txns) return <main className="main" />;
+
+  const allSelected = txns.length > 0 && txns.every(t => selected.has(t.id));
+  const someSelected = selected.size > 0 && !allSelected;
 
   return (
     <main className="main">
@@ -76,8 +118,39 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
 
       {account?.type === 'loan' && <LoanPanel key={account.id} account={account} refresh={refresh} />}
 
+      {selected.size > 0 && (
+        <div className="selection-bar">
+          <span className="selection-count">
+            {selected.size} selected
+            <span className="selection-total"> · {fmt(txns.filter(t => selected.has(t.id)).reduce((s, t) => s + t.amount, 0))}</span>
+          </span>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setSelected(new Set()); setLastClicked(null); }}>
+            Clear
+          </button>
+          <ConfirmButton
+            label={`🗑 Delete ${selected.size}`}
+            confirmLabel={`Confirm delete ${selected.size}`}
+            title="Delete every selected transaction"
+            onConfirm={deleteSelected}
+          />
+        </div>
+      )}
+
       <div className="table-scroll">
       <div className={`grid-row txn-grid col-head ${showAccountCol ? 'with-account' : ''}`}>
+        <div className="sel-cell">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            ref={el => { if (el) el.indeterminate = someSelected; }}
+            onChange={() => {
+              setSelected(allSelected ? new Set() : new Set(txns.map(t => t.id)));
+              setLastClicked(null);
+            }}
+            title={allSelected ? 'Clear selection' : 'Select every transaction shown'}
+            aria-label="Select all transactions"
+          />
+        </div>
         <div>DATE</div>
         {showAccountCol && <div>ACCOUNT</div>}
         <div>PAYEE</div>
@@ -108,7 +181,7 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
             onCancel={() => setAdding(false)}
           />
         )}
-        {txns.map(t =>
+        {txns.map((t, i) =>
           editingId === t.id ? (
             <TxnEditor
               key={t.id}
@@ -123,7 +196,14 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
               onDelete={async () => { await remove(t.id); setEditingId(null); }}
             />
           ) : (
-            <TxnRow key={t.id} txn={t} showAccount={showAccountCol} onEdit={() => { setEditingId(t.id); setAdding(false); }} />
+            <TxnRow
+              key={t.id}
+              txn={t}
+              showAccount={showAccountCol}
+              selected={selected.has(t.id)}
+              onToggle={e => toggle(t.id, i, e.shiftKey)}
+              onEdit={() => { setEditingId(t.id); setAdding(false); }}
+            />
           )
         )}
         {txns.length === 0 && !adding && (
@@ -143,13 +223,24 @@ function categoryLabel(t) {
   return <span className="cat-tag">{t.category_emoji ? `${t.category_emoji} ` : ''}{t.category_name}</span>;
 }
 
-function TxnRow({ txn: t, showAccount, onEdit }) {
+function TxnRow({ txn: t, showAccount, selected, onToggle, onEdit }) {
   return (
     <div
-      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''}`}
+      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''} ${selected ? 'selected' : ''}`}
       title={!t.cleared ? 'Pending — double-click to edit' : 'Double-click to edit'}
       onDoubleClick={onEdit}
     >
+      {/* the click is stopped here so ticking a box never starts an edit */}
+      <div className="sel-cell" onDoubleClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          onClick={onToggle}
+          onChange={() => {}}
+          aria-label={`Select transaction ${t.payee || fmtDate(t.date)}`}
+          title="Select — shift-click to extend"
+        />
+      </div>
       <div className="muted">{fmtDate(t.date)}</div>
       {showAccount && <div className="soft">{t.account_name}</div>}
       <div className="soft">
@@ -383,6 +474,7 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
   return (
     <>
       <div className={`grid-row txn-grid row editor ${showAccount ? 'with-account' : ''}`}>
+        <div className="sel-cell" />{/* keeps the editor aligned with the select column */}
         <div><input type="date" value={date} onChange={e => setDate(e.target.value)} /></div>
         {showAccount && (
           <div>

@@ -431,22 +431,42 @@ app.patch('/api/transactions/:id', (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete('/api/transactions/:id', (req, res) => {
-  const txn = req.db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
+/** Removes one transaction and everything that logically travels with it: the
+ *  mirror side of a transfer, and the loan term a payment consumed. Returns how
+ *  many rows went. Safe to call for an id that is already gone, which happens in
+ *  a bulk delete when both sides of a transfer are selected. */
+function deleteTransaction(db, id) {
+  const txn = db.prepare('SELECT * FROM transactions WHERE id = ?').get(id);
+  if (!txn) return 0;
   // undoing a loan payment gives the term its payment back, so balance and
   // months stay in step and the derived monthly payment holds steady
-  if (txn && isLoanPayment(req.db, txn)) {
+  if (isLoanPayment(db, txn)) {
     const loanId = txn.interest != null ? txn.account_id : txn.transfer_account_id;
-    req.db.prepare(
+    db.prepare(
       'UPDATE accounts SET loan_months = loan_months + 1 WHERE id = ? AND loan_months IS NOT NULL'
     ).run(loanId);
   }
-  req.db.prepare('DELETE FROM transactions WHERE id = ?').run(req.params.id);
-  if (txn?.transfer_pair_id) {
+  let n = db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.id).changes;
+  if (txn.transfer_pair_id) {
     // a transfer is one logical operation — removing one side removes both
-    req.db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.transfer_pair_id);
+    n += db.prepare('DELETE FROM transactions WHERE id = ?').run(txn.transfer_pair_id).changes;
   }
+  return n;
+}
+
+app.delete('/api/transactions/:id', (req, res) => {
+  deleteTransaction(req.db, req.params.id);
   res.json({ ok: true });
+});
+
+// Bulk delete from the register's multi-select. One transaction so a failure
+// part-way cannot leave a transfer half-removed or a loan term over-credited.
+app.post('/api/transactions/bulk-delete', (req, res) => {
+  const { ids } = req.body ?? {};
+  if (!Array.isArray(ids) || ids.length === 0) return bad(res, 'Nothing selected');
+  if (!ids.every(id => Number.isInteger(id))) return bad(res, 'invalid ids');
+  const run = req.db.transaction(() => ids.reduce((n, id) => n + deleteTransaction(req.db, id), 0));
+  res.json({ deleted: run() });
 });
 
 // ---------- reports ----------
