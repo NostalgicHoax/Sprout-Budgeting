@@ -97,7 +97,14 @@ export default function AccountView({ state, accountId, categoryId, refresh }) {
             defaultAccountId={showAccountCol ? state.accounts.find(a => !a.closed)?.id : accountId}
             defaultCatValue={isCategory ? `cat:${categoryId}` : undefined}
             refresh={refresh}
-            onSave={async body => { await api('/api/transactions', { method: 'POST', body }); await mutated(); setAdding(false); }}
+            onSave={async body => {
+              // loan payments have their own endpoint: it splits interest from
+              // principal and steps the term down by one payment
+              const url = body.kind === 'loan-payment' ? '/api/loan-payment' : '/api/transactions';
+              await api(url, { method: 'POST', body });
+              await mutated();
+              setAdding(false);
+            }}
             onCancel={() => setAdding(false)}
           />
         )}
@@ -343,6 +350,21 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
       if (!transferAccountId) { setError('Choose the account this transfers to'); return; }
       if (Number(transferAccountId) === Number(accountId)) { setError('A transfer needs two different accounts'); return; }
     }
+    if (catValue === 'loan-payment') {
+      if (!transferAccountId) { setError('Choose the loan you paid'); return; }
+      if (out <= 0) { setError('Enter the amount you paid as an outflow'); return; }
+      try {
+        await onSave({
+          kind: 'loan-payment',
+          fromAccountId: Number(accountId),
+          loanAccountId: Number(transferAccountId),
+          amount: out, date, memo,
+        });
+      } catch (e) {
+        setError(e.message);
+      }
+      return;
+    }
     const amount = inn - out;
     const body = {
       accountId: Number(accountId), date, payee, memo, amount,
@@ -372,7 +394,18 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
           </div>
         )}
         <div>
-          {catValue === 'transfer' ? (
+          {catValue === 'loan-payment' ? (
+            <select
+              value={transferAccountId}
+              onChange={e => setTransferAccountId(e.target.value)}
+              title="The loan this payment goes toward"
+            >
+              <option value="" disabled>🏦 Pay loan…</option>
+              {state.accounts
+                .filter(a => a.type === 'loan' && !a.closed)
+                .map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          ) : catValue === 'transfer' ? (
             <select
               value={transferAccountId}
               onChange={e => setTransferAccountId(e.target.value)}
@@ -414,6 +447,11 @@ function TxnEditor({ state, payees, payeeCats, showAccount, txn, defaultAccountI
             )}
             <option value="income">💵 Inflow: Ready to Assign</option>
             <option value="transfer">🔁 Transfer / Card Payment</option>
+            {/* only for new entries: re-splitting interest and stepping the term
+                back on an edit isn't supported, so the server rejects it */}
+            {!txn && state.accounts.some(a => a.type === 'loan' && !a.closed) && (
+              <option value="loan-payment">🏦 Loan Payment</option>
+            )}
             <option value="uncategorized">Uncategorized</option>
             <option value="new-category">＋ New category…</option>
             {state.groups.map(g => (

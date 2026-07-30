@@ -25,6 +25,32 @@ export function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+/** How much of a transaction moves its account's balance. Normally the whole
+ *  amount; for the loan side of a loan payment, only the principal slice, since
+ *  the interest was never part of what you owed. */
+export function principalOf(t) {
+  if (t.interest == null) return t.amount;
+  return t.amount >= 0 ? t.amount - t.interest : t.amount + t.interest;
+}
+
+/** Month-end balance of a loan for every month it has activity, oldest first.
+ *  Feeds the actual-vs-projected trail on the payoff chart. */
+export function loanHistory(db, accountId) {
+  const rows = db.prepare(
+    'SELECT date, amount, interest FROM transactions WHERE account_id = ? ORDER BY date, id'
+  ).all(accountId);
+  const byMonth = new Map();
+  let running = 0;
+  for (const t of rows) {
+    running += principalOf(t);
+    // Months where the running total isn't a debt aren't real history: they show
+    // up when payments are dated before the balance they pay down, and plotting
+    // them would draw the loan above zero. Skip rather than render a fiction.
+    if (running < 0) byMonth.set(t.date.slice(0, 7), running);
+  }
+  return [...byMonth].map(([month, balance]) => ({ month, balance }));
+}
+
 export function buildState(db, month) {
   const prev = shiftMonth(month, -1);
   const accounts = db.prepare('SELECT * FROM accounts ORDER BY sort_order, id').all();
@@ -68,7 +94,10 @@ export function buildState(db, month) {
   }
 
   for (const t of txns) {
-    balances.set(t.account_id, (balances.get(t.account_id) ?? 0) + t.amount);
+    // A loan payment records the full amount paid but only its principal slice
+    // moves the balance — the interest was never owed as principal. `interest`
+    // is set on the loan side of a loan payment and null everywhere else.
+    balances.set(t.account_id, (balances.get(t.account_id) ?? 0) + principalOf(t));
     const acct = acctById.get(t.account_id);
     if (!acct || !onBudget(acct) || t.is_transfer) continue;
     const tm = t.date.slice(0, 7);
@@ -178,6 +207,9 @@ export function buildState(db, month) {
       balance: balances.get(a.id) ?? 0,
       apr: a.apr, loanMonths: a.loan_months,
       connectionId: a.connection_id, externalId: a.external_id,
+      // actual month-end balances, so the payoff chart can show real progress
+      // behind the projection rather than only the plan
+      ...(a.type === 'loan' ? { history: loanHistory(db, a.id) } : {}),
     })),
     connections: db.prepare(
       'SELECT id, provider, name, last_sync_at, last_sync_status FROM connections ORDER BY id'

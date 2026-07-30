@@ -8,7 +8,7 @@ import { claimToken, listExternalAccounts, syncConnection } from './sync.js';
 import { allPayeeCategories, forgetCategory, recordChoice } from './payees.js';
 import {
   buildState, currentMonth, shiftMonth, setAssigned, coverOverspending, assignLastMonth,
-  moveMoney, fundGoals,
+  moveMoney, fundGoals, principalOf,
 } from './budget.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -312,9 +312,93 @@ app.post('/api/transactions', (req, res) => {
   res.json({ id: Number(lastInsertRowid) });
 });
 
+/** True for either side of a loan payment: the loan side carries the interest
+ *  slice, the paying side is the row linked to it. */
+function isLoanPayment(db, txn) {
+  if (txn.interest != null) return true;
+  if (txn.transfer_pair_id == null) return false;
+  const pair = db.prepare('SELECT interest FROM transactions WHERE id = ?').get(txn.transfer_pair_id);
+  return pair?.interest != null;
+}
+
+/** What a loan payment does to the loan, given the balance owed right now.
+ *  Interest is this month's accrual on the outstanding principal; the rest pays
+ *  the principal down. A final payment can't reduce principal below zero. */
+export function splitLoanPayment(owed, aprPct, amount) {
+  const interest = Math.round(owed * (aprPct / 100 / 12));
+  if (amount <= interest) return null;             // never amortizes
+  const principal = Math.min(amount - interest, owed);
+  return { interest: amount - principal, principal };
+}
+
+// A loan payment is one entry the user records, mirrored across both accounts
+// like a transfer — but only the principal slice moves the loan balance, and the
+// term drops by one payment so the derived monthly payment stays put. Deriving
+// the payment from (balance, apr, months) is only stable if all three stay in
+// step; that is what a plain transfer got wrong.
+app.post('/api/loan-payment', (req, res) => {
+  const { fromAccountId, loanAccountId, amount, date, memo = '', categoryId = null } = req.body ?? {};
+  if (!DATE_RE.test(date || '')) return bad(res, 'Choose a valid date');
+  if (!Number.isInteger(amount) || amount <= 0) return bad(res, 'Enter an amount greater than zero');
+
+  const from = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(fromAccountId);
+  if (!from) return bad(res, 'Choose the account paying the loan');
+  if (from.type === 'loan') return bad(res, 'Loan payments come from a cash or credit account');
+  const loan = req.db.prepare('SELECT * FROM accounts WHERE id = ?').get(loanAccountId);
+  if (!loan || loan.type !== 'loan') return bad(res, 'Choose a loan account');
+  if (loan.apr == null) return bad(res, 'Set the loan APR under Loan Details first');
+
+  const rows = req.db.prepare('SELECT amount, interest FROM transactions WHERE account_id = ?').all(loan.id);
+  const owed = -rows.reduce((s, t) => s + principalOf(t), 0);
+  if (owed <= 0) return bad(res, 'This loan is already paid off');
+
+  const split = splitLoanPayment(owed, loan.apr, amount);
+  if (!split) return bad(res, "That payment doesn't cover this month's interest");
+
+  let category_id = null;
+  if (categoryId != null) {
+    const cat = req.db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId);
+    if (!cat) return bad(res, 'Choose a category');
+    category_id = cat.id;
+  }
+
+  const write = req.db.transaction(() => {
+    // paying side: the full amount left this account, categorized as real
+    // spending when a category is given, budget-neutral otherwise
+    const { lastInsertRowid: fromId } = req.db.prepare(`
+      INSERT INTO transactions (account_id, date, payee, category_id, memo, amount, is_transfer,
+        cleared, transfer_account_id)
+      VALUES (?, ?, '', ?, ?, ?, ?, 1, ?)
+    `).run(from.id, date, category_id, String(memo), -amount, category_id == null ? 1 : 0, loan.id);
+
+    // loan side: records the full amount paid, but `interest` tells the balance
+    // math to credit principal only
+    const { lastInsertRowid: loanId } = req.db.prepare(`
+      INSERT INTO transactions (account_id, date, payee, memo, amount, is_transfer, cleared,
+        transfer_account_id, transfer_pair_id, interest)
+      VALUES (?, ?, '', ?, ?, 1, 1, ?, ?, ?)
+    `).run(loan.id, date, String(memo), amount, from.id, fromId, split.interest);
+    req.db.prepare('UPDATE transactions SET transfer_pair_id = ? WHERE id = ?').run(loanId, fromId);
+
+    if (loan.loan_months != null && loan.loan_months > 0) {
+      req.db.prepare('UPDATE accounts SET loan_months = loan_months - 1 WHERE id = ?').run(loan.id);
+    }
+    return Number(loanId);
+  });
+
+  const id = write();
+  res.json({ id, interest: split.interest, principal: split.principal });
+});
+
 app.patch('/api/transactions/:id', (req, res) => {
   const txn = req.db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
   if (!txn) return res.status(404).json({ error: 'Transaction not found' });
+  // Editing a loan payment would have to re-split interest and step the term
+  // back, and the generic update path does neither — it would silently drop the
+  // interest and leave the balance wrong. Refuse instead.
+  if (isLoanPayment(req.db, txn)) {
+    return bad(res, 'Delete this loan payment and record it again to change it');
+  }
   const f = txnFields(req.db, req.body, res);
   if (!f) return;
   req.db.prepare(`
@@ -349,6 +433,14 @@ app.patch('/api/transactions/:id', (req, res) => {
 
 app.delete('/api/transactions/:id', (req, res) => {
   const txn = req.db.prepare('SELECT * FROM transactions WHERE id = ?').get(req.params.id);
+  // undoing a loan payment gives the term its payment back, so balance and
+  // months stay in step and the derived monthly payment holds steady
+  if (txn && isLoanPayment(req.db, txn)) {
+    const loanId = txn.interest != null ? txn.account_id : txn.transfer_account_id;
+    req.db.prepare(
+      'UPDATE accounts SET loan_months = loan_months + 1 WHERE id = ? AND loan_months IS NOT NULL'
+    ).run(loanId);
+  }
   req.db.prepare('DELETE FROM transactions WHERE id = ?').run(req.params.id);
   if (txn?.transfer_pair_id) {
     // a transfer is one logical operation — removing one side removes both
