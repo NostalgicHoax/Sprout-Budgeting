@@ -9,9 +9,11 @@ services:
       # host:container — change only the left number if 3178 is taken.
       - "3178:3178"
     environment:
-      # The server decides what "this month" is from its own clock, so set this
-      # to your timezone or budgets will roll over at the wrong time.
-      TZ: ${TZ:-UTC}
+      # Required, no default on purpose. The server decides what "this month" is
+      # from its own clock, so a container left on UTC shows the wrong month for
+      # part of every day and rolls the budget over early — quietly, and on the
+      # app's most important number. `:?` makes compose refuse to start instead.
+      TZ: ${TZ:?set TZ in a .env file next to docker-compose.yml, e.g. TZ=America/Los_Angeles — see .env.example}
     volumes:
       # Your entire budget lives here and cannot be recovered without your
       # password. Back this volume up.

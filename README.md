@@ -108,7 +108,21 @@ with fake numbers before committing to your real ones.
 ### Or run it with Docker
 
 If you'd rather not install Node.js, and you have
-[Docker](https://docs.docker.com/get-started/get-docker/) installed:
+[Docker](https://docs.docker.com/get-started/get-docker/) installed, first tell
+Sprout what timezone you're in:
+
+```
+cp .env.example .env
+```
+
+Then open `.env` and set `TZ` to your timezone, like `America/Los_Angeles` or
+`Europe/Berlin` ([full list](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones)).
+This one isn't optional — Sprout works out what "this month" is from the
+container's clock, so getting it wrong means your budget flips to next month
+early. Sprout refuses to start until it's set, rather than quietly showing you
+the wrong month.
+
+Now start it:
 
 ```
 docker compose up -d
@@ -121,16 +135,6 @@ later:
 ```
 docker compose logs -f
 ```
-
-Set your timezone so months roll over at the right time — Sprout uses the
-container's clock to decide what "this month" means. Either put it in a `.env`
-file next to `docker-compose.yml`:
-
-```
-TZ=America/Chicago
-```
-
-...or edit the `TZ` line in `docker-compose.yml` directly.
 
 To update after pulling new code, rebuild and restart — your budget is untouched:
 
