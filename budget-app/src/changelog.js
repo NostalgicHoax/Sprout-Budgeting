@@ -14,6 +14,19 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.4.0',
+    date: '2026-07-30',
+    title: 'See what changed',
+    items: [
+      {
+        heading: 'What\'s New lives in the menu',
+        body: 'Sprout now keeps a short note of what changed in each release. '
+          + 'Open it from the menu at the top of the sidebar — a green dot appears '
+          + 'there whenever there is something you have not read yet.',
+      },
+    ],
+  },
+  {
     version: '0.3.0',
     date: '2026-07-30',
     title: 'Loans, bulk edits, and account clean-up',
