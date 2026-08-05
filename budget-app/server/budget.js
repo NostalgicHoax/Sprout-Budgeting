@@ -25,6 +25,67 @@ export function currentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
+// A goal is an amount per period. The budget works a month at a time, so every
+// goal has to resolve to a monthly figure — that is what Fund Goals assigns,
+// what the progress bar fills, and what "Goal met" compares against. Spreading
+// evenly is deliberate: the alternative, wanting the whole amount in the month
+// it falls due, makes Fund Goals drain Ready to Assign in a single month.
+
+/** Months in one period of a recurring goal. Weeks are converted at 52/12 so a
+ *  weekly goal costs what it actually costs over a year, not four weeks a month. */
+export function periodMonths(cat) {
+  switch (cat.goal_period) {
+    case 'weekly': return 12 / 52;
+    case 'monthly': return 1;
+    case 'quarterly': return 3;
+    case 'biannual': return 6;
+    case 'annual': return 12;
+    case 'custom': {
+      const n = Math.max(1, cat.goal_every ?? 1);
+      return cat.goal_unit === 'week' ? (n * 12) / 52 : n;
+    }
+    default: return 1;
+  }
+}
+
+/** Whole months from `month` (YYYY-MM) to `date` (YYYY-MM-DD), floored at 0. */
+function monthsUntil(month, date) {
+  if (!date) return 0;
+  const [y1, m1] = month.split('-').map(Number);
+  const [y2, m2] = date.split('-').map(Number);
+  return Math.max(0, (y2 * 12 + m2) - (y1 * 12 + m1));
+}
+
+/** How much Available this category should hold by the end of `month`.
+ *
+ *  Everything downstream reads it that way — Fund Goals assigns the difference
+ *  between this and current Available — so a by-date goal has to return a
+ *  running target rather than this month's instalment, or the instalment would
+ *  be counted against savings that already exist.
+ *
+ *  For a recurring goal it's the per-period amount spread across the period.
+ *  For a by-date goal it's what was already saved plus a fair share of what's
+ *  missing, so the ask self-corrects: fall behind and it rises, get ahead and it
+ *  falls.
+ *
+ *  `saved` must exclude this month's own assignment. Measuring against current
+ *  Available instead makes the target climb as you fund it — every dollar
+ *  assigned shrinks the remainder, which re-spreads over a window that still
+ *  counts this month, so the goal runs away from the money chasing it. */
+export function monthlyGoal(cat, month, saved = 0) {
+  const amount = cat.goal_amount ?? 0;
+  if (amount <= 0) return 0;
+  if (cat.goal_period === 'by-date') {
+    const banked = Math.max(0, saved);
+    const remaining = Math.max(0, amount - banked);
+    if (remaining === 0) return amount;
+    // the due month counts itself, so a goal due this month asks for all of it
+    const left = Math.max(1, monthsUntil(month, cat.goal_date) + 1);
+    return Math.min(amount, banked + Math.ceil(remaining / left));
+  }
+  return Math.round(amount / periodMonths(cat));
+}
+
 /** How much of a transaction moves its account's balance. Normally the whole
  *  amount; for the loan side of a loan payment, only the principal slice, since
  *  the interest was never part of what you owed. */
@@ -187,7 +248,16 @@ export function buildState(db, month) {
         name: c.name,
         emoji: c.emoji,
         linkedAccountId: c.linked_account_id,
-        goal: c.goal_amount ?? 0,
+        // `goal` stays the monthly figure everything downstream already works
+        // in; the period fields ride alongside so the UI can say where it came
+        // from ("$1,200 a year") without recomputing it
+        // available minus this month's assignment = what was banked coming in
+        goal: monthlyGoal(c, month, available - s.assignedM),
+        goalAmount: c.goal_amount ?? 0,
+        goalPeriod: c.goal_period ?? null,
+        goalEvery: c.goal_every ?? null,
+        goalUnit: c.goal_unit ?? null,
+        goalDate: c.goal_date ?? null,
         assigned: s.assignedM,
         activity: s.activityM,
         available,

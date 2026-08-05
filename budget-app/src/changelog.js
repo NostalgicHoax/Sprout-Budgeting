@@ -14,6 +14,37 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.5.0',
+    date: '2026-07-30',
+    title: 'Goals on your own schedule',
+    items: [
+      {
+        heading: 'Goals no longer have to be monthly',
+        body: 'A goal can now repeat weekly, monthly, quarterly, twice a year or '
+          + 'annually. Enter what the thing actually costs — $1,200 a year for '
+          + 'insurance — and Sprout works out that it needs $100 a month and asks '
+          + 'for that instead, so a big yearly bill never lands all at once.',
+      },
+      {
+        heading: 'Custom schedules',
+        body: 'Pick Custom to repeat on your own cadence, like $400 every two '
+          + 'months starting in March.',
+      },
+      {
+        heading: 'Save a total by a date',
+        body: 'Choose "By a date" for one-off targets — $2,400 by next March. '
+          + 'Sprout divides what is still missing by the months left, so the '
+          + 'amount it asks for goes up if you fall behind and down if you get '
+          + 'ahead.',
+      },
+      {
+        heading: 'Tidier budget and summary',
+        body: 'Categories sit indented under their group heading, and the summary '
+          + 'panel on the right has room to breathe.',
+      },
+    ],
+  },
+  {
     version: '0.4.1',
     date: '2026-07-30',
     title: 'Loan Payment is easier to find',

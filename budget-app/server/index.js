@@ -19,6 +19,7 @@ const PORT = portArgIndex >= 0
 const app = express();
 app.use(express.json());
 
+const GOAL_PERIODS = ['weekly', 'monthly', 'quarterly', 'biannual', 'annual', 'custom', 'by-date'];
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const bad = (res, msg) => res.status(400).json({ error: msg });
@@ -253,7 +254,36 @@ app.patch('/api/categories/:id', (req, res) => {
     }
     goal = req.body.goal || null;
   }
-  req.db.prepare('UPDATE categories SET name = ?, emoji = ?, goal_amount = ? WHERE id = ?').run(name, emoji, goal, cat.id);
+
+  let { goal_period: period, goal_every: every, goal_unit: unit, goal_date: date } = cat;
+  if (req.body.goalPeriod !== undefined) {
+    period = req.body.goalPeriod || null;
+    if (period != null && !GOAL_PERIODS.includes(period)) return bad(res, 'Choose a goal period');
+    // each period keeps only the fields it uses, so switching away from Custom
+    // can't leave a stale "every 3 weeks" behind to resurface later
+    every = null; unit = null; date = null;
+    if (period === 'custom') {
+      every = Number(req.body.goalEvery);
+      unit = req.body.goalUnit;
+      if (!Number.isInteger(every) || every < 1 || every > 60) return bad(res, 'Repeat every 1 to 60');
+      if (!['week', 'month'].includes(unit)) return bad(res, 'Choose weeks or months');
+      if (req.body.goalDate) {
+        if (!DATE_RE.test(req.body.goalDate)) return bad(res, 'Choose a valid start date');
+        date = req.body.goalDate;
+      }
+    } else if (period === 'by-date') {
+      if (!DATE_RE.test(req.body.goalDate || '')) return bad(res, 'Choose the date you need it by');
+      date = req.body.goalDate;
+    }
+  }
+  if (goal == null) { period = null; every = null; unit = null; date = null; }
+  else if (period == null) period = 'monthly';  // an amount with no period is the old shape
+
+  req.db.prepare(`
+    UPDATE categories SET name = ?, emoji = ?, goal_amount = ?,
+      goal_period = ?, goal_every = ?, goal_unit = ?, goal_date = ?
+    WHERE id = ?
+  `).run(name, emoji, goal, period, every, unit, date, cat.id);
   res.json({ ok: true });
 });
 
@@ -304,7 +334,16 @@ app.get('/api/categories/:id/details', (req, res) => {
 
   const n = months.length || 1;
   res.json({
-    category: { id: cat.id, name: cat.name, emoji: cat.emoji, goal: cat.goal_amount ?? 0, groupName: cat.group_name },
+    category: {
+      id: cat.id, name: cat.name, emoji: cat.emoji, groupName: cat.group_name,
+      // the editor works in the amount you typed and its period, not the
+      // monthly figure derived from them
+      goal: cat.goal_amount ?? 0,
+      goalPeriod: cat.goal_period ?? null,
+      goalEvery: cat.goal_every ?? null,
+      goalUnit: cat.goal_unit ?? null,
+      goalDate: cat.goal_date ?? null,
+    },
     months,
     transactions,
     stats: {

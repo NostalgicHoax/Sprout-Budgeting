@@ -249,7 +249,10 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 .spacer { flex: 1; }
 
 .cat-cell { min-width: 0; display: flex; flex-direction: column; gap: 0; }
-.cat-cell.indent { padding-left: 0; }
+/* categories sit under their group heading — the indent is what makes the
+   grouping readable at a glance. Group heads and the uncategorized row use a
+   plain .cat-cell, so they stay at the left edge to anchor it. */
+.cat-cell.indent { padding-left: 20px; }
 .cat-line { display: flex; align-items: center; gap: 9px; min-width: 0; }
 .caret { color: var(--muted); font-size: 12px; cursor: pointer; width: 12px; }
 .group-name {
@@ -317,8 +320,12 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 /* full-bleed rule: the panel's 20px padding is cancelled so the line reaches
    both edges and reads as structure rather than an underline on the text */
 .panel-head {
-  display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
-  margin: -20px -20px 0; padding: 18px 20px 14px;
+  /* Side margins cancel the panel's padding so the rule is full bleed. The top
+     margin cancels its 20px too, so the padding here is the whole story above
+     and below the title — one symmetric number rather than a figure that has to
+     be read together with the panel's own padding. */
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  margin: -20px -20px 0; padding: 24px 20px;
   border-bottom: 1px solid var(--border);
 }
 .panel-head .panel-title { margin-bottom: 0; }
@@ -365,6 +372,10 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 }
 .insp-section:last-child { border-bottom: none; padding-bottom: 0; }
 .insp-section .insp-label { margin-top: 16px; }
+/* sections that open with a label get their spacing from .insp-label above;
+   the first one opens straight onto a card, which otherwise sits against the
+   header rule */
+.panel-head + .insp-section { padding-top: 16px; }
 
 /* the numbers a section exists to show, lifted onto a card so the labels
    beside them stop competing with the section headings */
@@ -375,6 +386,25 @@ select optgroup { background: var(--card); color: var(--muted); font-style: norm
 }
 .insp-goal-row { display: flex; gap: 8px; align-items: center; }
 .insp-goal-row input { flex: 1; }
+/* the cadence buttons wrap rather than scroll — the panel is narrow and a
+   hidden option is the same as no option */
+.goal-periods { display: flex; flex-wrap: wrap; gap: 5px; margin: 0 0 9px; }
+.goal-period {
+  font-family: inherit; font-size: 11.5px; line-height: 1;
+  padding: 6px 9px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border2); background: transparent; color: var(--muted);
+}
+.goal-period:hover { background: var(--hover); color: var(--soft); }
+.goal-period.active {
+  background: var(--accent-deep); border-color: var(--accent);
+  color: var(--accent); font-weight: 600;
+}
+.goal-custom { display: flex; align-items: center; gap: 6px; margin: 0 0 9px; font-size: 12px; color: var(--muted); }
+.goal-custom input[type="date"] { flex: 1; min-width: 0; }
+.goal-custom select { width: auto; flex: none; }
+.goal-every { width: 52px; flex: none; text-align: center; }
+/* what the chosen cadence works out to per month, since the budget is monthly */
+.goal-derived { font-size: 11.5px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
 .insp-bar { margin: 10px 0 0 !important; height: 4px !important; }
 .insp-bar .bar-fill { height: 4px; }
 .insp-goal-status {
