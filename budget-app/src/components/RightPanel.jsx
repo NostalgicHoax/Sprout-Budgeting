@@ -106,9 +106,38 @@ function SummaryPanel({ state, month, refresh, onCollapse }) {
   );
 }
 
+const GOAL_PERIODS = [
+  { key: 'weekly', label: 'Weekly', title: 'An amount every week' },
+  { key: 'monthly', label: 'Monthly', title: 'An amount every month' },
+  { key: 'quarterly', label: 'Quarterly', title: 'An amount every 3 months' },
+  { key: 'biannual', label: 'Bi-annually', title: 'An amount every 6 months' },
+  { key: 'annual', label: 'Annually', title: 'An amount every year' },
+  { key: 'custom', label: 'Custom', title: 'Repeat on your own schedule' },
+  { key: 'by-date', label: 'By a date', title: 'Save a total by a deadline' },
+];
+
+/** How to say one period in "amount per ___". */
+function periodNoun(period, every, unit) {
+  switch (period) {
+    case 'weekly': return 'week';
+    case 'quarterly': return 'quarter';
+    case 'biannual': return 'half-year';
+    case 'annual': return 'year';
+    case 'custom': {
+      const n = Number(every) || 1;
+      return n === 1 ? (unit ?? 'month') : `${n} ${unit ?? 'month'}s`;
+    }
+    default: return 'month';
+  }
+}
+
 function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setView }) {
   const [details, setDetails] = useState(null);
   const [goalInput, setGoalInput] = useState('');
+  const [period, setPeriod] = useState('monthly');
+  const [every, setEvery] = useState('1');
+  const [unit, setUnit] = useState('month');
+  const [goalDate, setGoalDate] = useState('');
   const [savingGoal, setSavingGoal] = useState(false);
   const [nameInput, setNameInput] = useState(cat.name);
   const [manageMsg, setManageMsg] = useState(null);
@@ -119,7 +148,12 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
     api(`/api/categories/${cat.id}/details?month=${month}`).then(d => {
       if (!live) return;
       setDetails(d);
-      setGoalInput(d.category.goal > 0 ? (d.category.goal / 100).toFixed(2) : '');
+      const c = d.category;
+      setGoalInput(c.goal > 0 ? (c.goal / 100).toFixed(2) : '');
+      setPeriod(c.goalPeriod ?? 'monthly');
+      setEvery(String(c.goalEvery ?? 1));
+      setUnit(c.goalUnit ?? 'month');
+      setGoalDate(c.goalDate ?? '');
     }).catch(() => {});
     return () => { live = false; };
   }, [cat.id, month, cat.assigned, cat.activity, cat.available, cat.goal]);
@@ -131,9 +165,22 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
     const trimmed = goalInput.trim();
     const cents = trimmed === '' ? null : parseAmount(trimmed);
     if (trimmed !== '' && (cents == null || cents < 0)) return;
+    if (cents != null && period === 'by-date' && !goalDate) {
+      alert('Choose the date you need it by');
+      return;
+    }
     setSavingGoal(true);
     try {
-      await api(`/api/categories/${cat.id}`, { method: 'PATCH', body: { goal: cents } });
+      await api(`/api/categories/${cat.id}`, {
+        method: 'PATCH',
+        body: {
+          goal: cents,
+          goalPeriod: cents == null ? null : period,
+          goalEvery: period === 'custom' ? Number(every) : undefined,
+          goalUnit: period === 'custom' ? unit : undefined,
+          goalDate: period === 'custom' || period === 'by-date' ? (goalDate || undefined) : undefined,
+        },
+      });
       await refresh();
     } catch (e) {
       alert(e.message);
@@ -177,7 +224,15 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
     }
   }
 
-  const goalChanged = details && goalInput.trim() !== (details.category.goal > 0 ? (details.category.goal / 100).toFixed(2) : '');
+  // Save has to arm on a period change too, not just the amount — switching
+  // Monthly to Annually with the same figure is a real edit.
+  const saved = details?.category;
+  const goalChanged = !!details && (
+    goalInput.trim() !== (saved.goal > 0 ? (saved.goal / 100).toFixed(2) : '')
+    || (goalInput.trim() !== '' && period !== (saved.goalPeriod ?? 'monthly'))
+    || (period === 'custom' && (Number(every) !== (saved.goalEvery ?? 1) || unit !== (saved.goalUnit ?? 'month')))
+    || ((period === 'custom' || period === 'by-date') && goalDate !== (saved.goalDate ?? ''))
+  );
 
   return (
     <aside className="right-panel">
@@ -205,17 +260,62 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
       </section>
 
       <section className="insp-section">
-        <div className="insp-label">🎯 MONTHLY GOAL</div>
+        <div className="insp-label">🎯 GOAL</div>
+        <div className="goal-periods">
+          {GOAL_PERIODS.map(p => (
+            <button
+              key={p.key}
+              className={`goal-period ${period === p.key ? 'active' : ''}`}
+              title={p.title}
+              onClick={() => setPeriod(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {period === 'custom' && (
+          <div className="goal-custom">
+            <span>Every</span>
+            <input
+              className="goal-every"
+              inputMode="numeric"
+              value={every}
+              onChange={e => setEvery(e.target.value)}
+            />
+            <select value={unit} onChange={e => setUnit(e.target.value)}>
+              <option value="week">weeks</option>
+              <option value="month">months</option>
+            </select>
+            <input type="date" value={goalDate} onChange={e => setGoalDate(e.target.value)} title="Starting from (optional)" />
+          </div>
+        )}
+        {period === 'by-date' && (
+          <div className="goal-custom">
+            <span>By</span>
+            <input type="date" value={goalDate} onChange={e => setGoalDate(e.target.value)} />
+          </div>
+        )}
+
         <div className="insp-goal-row">
           <input
             inputMode="decimal"
-            placeholder="No goal — enter amount"
+            placeholder={period === 'by-date' ? 'Total to save' : `Amount per ${periodNoun(period, every, unit)}`}
             value={goalInput}
             onChange={e => setGoalInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && saveGoal()}
           />
           <button className="btn btn-accent btn-sm" disabled={savingGoal || !goalChanged} onClick={saveGoal}>Save</button>
         </div>
+        {/* the budget works a month at a time, so say what the chosen cadence
+            costs per month rather than leaving the user to divide it */}
+        {cat.goal > 0 && cat.goalPeriod && cat.goalPeriod !== 'monthly' && (
+          <div className="goal-derived">
+            {cat.goalPeriod === 'by-date'
+              ? `${fmt(cat.goalAmount)} by ${cat.goalDate} — ${fmt(Math.max(0, cat.goal - cat.available))} due this month`
+              : `${fmt(cat.goalAmount)} per ${periodNoun(cat.goalPeriod, cat.goalEvery, cat.goalUnit)} — about ${fmt(cat.goal)} a month`}
+          </div>
+        )}
         {cat.goal > 0 && (
           <>
             <div className="bar-track insp-bar">

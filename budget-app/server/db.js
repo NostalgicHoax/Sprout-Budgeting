@@ -39,7 +39,13 @@ export function createSchema(db) {
       emoji TEXT,
       sort_order INTEGER NOT NULL DEFAULT 0,
       linked_account_id INTEGER REFERENCES accounts(id),
-      goal_amount INTEGER
+      goal_amount INTEGER,
+      -- goal_amount is per period, not per month; the monthly figure the budget
+      -- works in is derived from it. See monthlyGoal() in budget.js.
+      goal_period TEXT,
+      goal_every INTEGER,
+      goal_unit TEXT,
+      goal_date TEXT
     );
     CREATE TABLE transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -118,6 +124,16 @@ export function migrateBudgetDb(db) {
   // what was actually paid while the balance moves by principal only.
   if (!cols.includes('interest')) {
     db.exec('ALTER TABLE transactions ADD COLUMN interest INTEGER');
+  }
+  // Goals gained a period. Existing goals were monthly amounts, so they are
+  // stamped as such rather than left null — null would otherwise have to mean
+  // "monthly" forever, and every read would carry that assumption.
+  if (!catCols.includes('goal_period')) {
+    db.exec('ALTER TABLE categories ADD COLUMN goal_period TEXT');
+    db.exec('ALTER TABLE categories ADD COLUMN goal_every INTEGER');
+    db.exec('ALTER TABLE categories ADD COLUMN goal_unit TEXT');
+    db.exec('ALTER TABLE categories ADD COLUMN goal_date TEXT');
+    db.exec("UPDATE categories SET goal_period = 'monthly' WHERE goal_amount IS NOT NULL");
   }
   const hasPayeeCategories = db.prepare(
     "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'payee_categories'"
