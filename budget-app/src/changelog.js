@@ -39,8 +39,9 @@ export const CHANGELOG = [
       },
       {
         heading: 'Tidier budget and summary',
-        body: 'Categories sit indented under their group heading, and the summary '
-          + 'panel on the right has room to breathe.',
+        body: 'Categories sit indented under their group heading, the summary '
+          + 'panel on the right has room to breathe, and date fields match the '
+          + 'rest of the app instead of standing out.',
       },
     ],
   },
