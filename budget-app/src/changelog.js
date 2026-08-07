@@ -14,6 +14,22 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.0',
+    date: '2026-07-30',
+    title: 'Undo an overassignment',
+    items: [
+      {
+        heading: 'Put back money you did not have',
+        body: 'Assign more than you have and the number at the top turns red. '
+          + 'The Assign menu now offers to put it right: it takes money back '
+          + 'from the categories that need it furthest in the future — anything '
+          + 'without a goal first, then yearly, then quarterly — and leaves next '
+          + 'week\'s money where it is. Anything already spent stays spent, and '
+          + 'it tells you if it could not cover the whole amount.',
+      },
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-07-30',
     title: 'Goals on your own schedule',
@@ -36,15 +52,6 @@ export const CHANGELOG = [
           + 'Sprout divides what is still missing by the months left, so the '
           + 'amount it asks for goes up if you fall behind and down if you get '
           + 'ahead.',
-      },
-      {
-        heading: 'Undo an overassignment in one click',
-        body: 'Assign more than you have and the number at the top turns red. '
-          + 'The Assign menu now offers to put it right: it takes money back '
-          + 'from the categories that need it furthest in the future — anything '
-          + 'without a goal first, then yearly, then quarterly — and leaves next '
-          + 'week\'s money where it is. Anything already spent stays spent, and '
-          + 'it tells you if it could not cover the whole thing.',
       },
       {
         heading: 'Tidier budget and summary',
