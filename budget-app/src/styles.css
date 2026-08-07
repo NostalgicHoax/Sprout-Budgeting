@@ -119,7 +119,7 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 
 /* ============ sidebar ============ */
 .sidebar {
-  width: 300px; flex: none;
+  width: var(--side-w, 300px); flex: none;
   background: var(--panel);
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column; height: 100%;
@@ -333,7 +333,7 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 
 /* ============ right panel ============ */
 .right-panel {
-  width: 340px; flex: none; background: var(--panel);
+  width: var(--right-w, 340px); flex: none; background: var(--panel);
   border-left: 1px solid var(--border); height: 100%; overflow-y: auto;
   padding: 20px 20px 40px;
 }
@@ -564,7 +564,9 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .table-scroll > .col-head,
 .table-scroll > .table-body { min-width: fit-content; }
 @media (max-width: 1100px) {
-  .sidebar { width: 240px; }
+  /* narrower default on a small screen, but still the same variable — a flat
+     width here would win over the drag and quietly freeze the sidebar */
+  .sidebar { width: var(--side-w, 240px); }
 }
 .txn-grid .num { font-weight: 600; }
 /* editor: roomier rows, and fields that never spill into their neighbours */
@@ -950,6 +952,28 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .flow-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .flow-table td.pos { color: var(--accent); }
 .flow-table td.neg { color: var(--red); }
+
+
+/* ---- pane resizing ---- */
+/* An 8px strip on the inner edge of each side pane. It sits inside the pane
+   rather than overhanging it: .right-panel scrolls, and a negative offset there
+   would make the panel scroll sideways. */
+.resize-handle {
+  position: absolute; top: 0; bottom: 0; width: 8px; z-index: 30;
+  cursor: col-resize; touch-action: none;
+}
+.sidebar .resize-handle { right: 0; }
+.right-panel .resize-handle { left: 0; }
+.resize-handle::after {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px;
+  background: transparent; transition: background .12s;
+}
+.resize-handle:hover::after { background: var(--accent); opacity: .55; }
+/* while dragging, the cursor and the highlight have to survive the pointer
+   leaving the strip, and text must not select under it */
+body.resizing { cursor: col-resize !important; user-select: none; }
+body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
+.right-panel { position: relative; }
 
 /* ============ reports ============ */
 .report-body { flex: 1; overflow-y: auto; padding: 18px 22px 30px; }

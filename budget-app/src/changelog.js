@@ -29,6 +29,13 @@ export const CHANGELOG = [
           + 'fund no longer holds what it needs.',
       },
       {
+        heading: 'Resize the side panels',
+        body: 'Drag the edge where either side panel meets the middle to make it '
+          + 'wider or narrower. Drag it far enough towards the outside and the '
+          + 'panel collapses; drag a collapsed one back towards the middle and it '
+          + 'opens again. Sprout remembers the widths you chose.',
+      },
+      {
         heading: 'Search and filter the register',
         body: 'Every transaction list now has a search box and a category picker. '
           + 'Search matches payees, memos, categories, account names and amounts, '

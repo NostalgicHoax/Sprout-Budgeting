@@ -1,10 +1,47 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fmt, fmtDate, monthLabel, monthName, parseAmount } from '../money.js';
 import { api } from '../api.js';
 import ConfirmButton from './ConfirmButton.jsx';
+import ResizeHandle from './ResizeHandle.jsx';
 
 export default function RightPanel({ state, month, refresh, selectedCat, onCloseInspector, setView }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('rightPanelCollapsed') === '1');
+  const [width, setWidth] = useState(() => Number(localStorage.getItem('rightPanelWidth')) || 340);
+  const pull = useRef(0);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--right-w', `${width}px`);
+  }, [width]);
+
+  // mirrored: this pane grows as the pointer moves LEFT, so the sign flips
+  const RIGHT_MIN = 280, RIGHT_MAX = 560, RIGHT_COLLAPSE = 230, PULL_OPEN = 45;
+  function dragRight(dx) {
+    if (collapsed) {
+      if (dx < 0) {
+        pull.current -= dx;
+        if (pull.current > PULL_OPEN) {
+          pull.current = 0;
+          setCollapsed(false);
+          localStorage.setItem('rightPanelCollapsed', '0');
+        }
+      }
+      return;
+    }
+    const next = width - dx;
+    if (next < RIGHT_COLLAPSE) {
+      setCollapsed(true);
+      localStorage.setItem('rightPanelCollapsed', '1');
+      return;
+    }
+    setWidth(Math.min(RIGHT_MAX, Math.max(RIGHT_MIN, next)));
+  }
+  const handle = (
+    <ResizeHandle
+      label={collapsed ? 'Drag left to open the panel' : 'Drag to resize the panel'}
+      onDrag={dragRight}
+      onDone={() => { pull.current = 0; localStorage.setItem('rightPanelWidth', String(width)); }}
+    />
+  );
 
   // picking a category should always reveal the inspector
   useEffect(() => {
@@ -21,6 +58,7 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
   if (collapsed) {
     return (
       <aside className="right-panel collapsed" onClick={toggle} title="Expand panel">
+        {handle}
         <span className="panel-toggle">«</span>
         <div className="collapsed-label">
           {selectedCat ? selectedCat.name : `${monthName(month)}'s Summary`}
@@ -39,13 +77,14 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
       onClose={onCloseInspector}
       onCollapse={toggle}
       setView={setView}
+      handle={handle}
     />
   ) : (
-    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} />
+    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} handle={handle} />
   );
 }
 
-function SummaryPanel({ state, month, refresh, onCollapse }) {
+function SummaryPanel({ state, month, refresh, onCollapse, handle }) {
   const { summary } = state;
   const allCats = state.groups.flatMap(g => g.categories);
   const overspentTotal = allCats.reduce((s, c) => s + Math.min(c.available, 0), 0);
@@ -57,6 +96,7 @@ function SummaryPanel({ state, month, refresh, onCollapse }) {
 
   return (
     <aside className="right-panel">
+      {handle}
       <div className="panel-head">
         <div className="panel-title">{monthName(month)}'s Summary</div>
         <button className="panel-toggle" title="Collapse panel" onClick={onCollapse}>»</button>
@@ -131,7 +171,7 @@ function periodNoun(period, every, unit) {
   }
 }
 
-function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setView }) {
+function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setView, handle }) {
   const [details, setDetails] = useState(null);
   const [goalInput, setGoalInput] = useState('');
   const [period, setPeriod] = useState('monthly');
@@ -236,6 +276,7 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
 
   return (
     <aside className="right-panel">
+      {handle}
       <div className="panel-head">
         <div className="panel-head-text">
           <div className="panel-title ellipsis">{cat.emoji ? `${cat.emoji} ` : ''}{cat.name}</div>
