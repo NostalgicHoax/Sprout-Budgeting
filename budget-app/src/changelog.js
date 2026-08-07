@@ -19,6 +19,12 @@ export const CHANGELOG = [
     title: 'Undo an overassignment, and see money in vs out',
     items: [
       {
+        heading: 'The tab tells you which budget is open',
+        body: 'The browser tab now carries the name of the budget you have open '
+          + 'rather than a fixed title, so two budgets in two tabs are easy to '
+          + 'tell apart. Sprout has a proper icon there too.',
+      },
+      {
         heading: 'A new Income vs Expenses report',
         body: 'The Reports tab now has a second view: what came in against what '
           + 'went out, month by month. Money in rises above the line, money out '
