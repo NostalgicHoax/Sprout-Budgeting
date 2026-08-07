@@ -59,10 +59,25 @@ try {
   console.log(`registered ${EMAIL}`);
 }
 
+// Seed the budget that's already open when it's still empty — a fresh account
+// lands there on login, and making a second budget would leave the data behind
+// a menu the person doesn't know to open. Once there's anything real in it, make
+// a separate one instead so nothing can be damaged.
+const before = await call('/api/state');
+const me = await call('/api/auth/me');
+const emptyHere = before.accounts.length === 0 && before.groups.every(g => g.categories.length === 0);
 const stamp = `${THIS} ${pad(now.getHours())}${pad(now.getMinutes())}`;
-const budget = await call('/api/budgets', { method: 'POST', body: { name: `Sandbox ${stamp}`, demo: false } });
-await call(`/api/budgets/${budget.id}/select`, { method: 'POST' });
-console.log(`created and switched to budget "Sandbox ${stamp}"`);
+let budgetName;
+if (emptyHere) {
+  budgetName = `Sandbox ${stamp}`;
+  await call(`/api/budgets/${me.activeBudgetId}`, { method: 'PATCH', body: { name: budgetName } });
+  console.log(`filling the empty budget already open, renamed "${budgetName}"`);
+} else {
+  budgetName = `Sandbox ${stamp}`;
+  const budget = await call('/api/budgets', { method: 'POST', body: { name: budgetName, demo: false } });
+  await call(`/api/budgets/${budget.id}/select`, { method: 'POST' });
+  console.log(`existing data found — created a separate budget "${budgetName}"`);
+}
 
 // ---------- accounts ----------
 const start = shift(-MONTHS_BACK);
@@ -217,4 +232,5 @@ const final = await call('/api/state');
 console.log(`\n${made} transactions across ${MONTHS_BACK + 1} months`);
 console.log(`accounts: 5 open, 1 closed, 1 loan`);
 console.log(`ready to assign: ${(final.readyToAssign / 100).toFixed(2)} (negative on purpose — try "Recover overassigned")`);
-console.log(`\nOpen ${API}, sign in as ${EMAIL}, and pick "Sandbox ${stamp}" from the menu at the top left.`);
+console.log(`\nOpen ${API} and sign in as ${EMAIL}.`);
+if (!emptyHere) console.log(`Then pick "${budgetName}" from the menu at the top left.`);
