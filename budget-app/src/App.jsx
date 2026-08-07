@@ -36,6 +36,13 @@ export default function App() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // the tab carries the open budget's name, so several budgets in several tabs
+  // are told apart without opening each one
+  const budgetName = auth?.budgets?.find(b => b.id === auth.activeBudgetId)?.name;
+  useEffect(() => {
+    document.title = budgetName || 'Sprout';
+  }, [budgetName]);
+
   // switching budgets (or signing in) starts back at the Plan view
   const activeBudgetId = auth?.activeBudgetId;
   useEffect(() => {

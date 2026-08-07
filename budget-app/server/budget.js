@@ -318,6 +318,62 @@ export function coverOverspending(db, month) {
   }
 }
 
+/** How many months until this category's money is actually wanted. Drives which
+ *  categories give money back first when you've assigned more than you have.
+ *
+ *  A category with no goal has nothing scheduled against it, so it ranks
+ *  furthest out and is raided first. A by-date goal uses its real deadline.
+ *  Everything else uses its period: an annual goal doesn't need its money again
+ *  for a year, a weekly one needs it next week. */
+function fundingHorizon(cat, month) {
+  if (!cat.goalAmount || cat.goalAmount <= 0) return Infinity;
+  if (cat.goalPeriod === 'by-date') {
+    if (!cat.goalDate) return Infinity;
+    const [y1, m1] = month.split('-').map(Number);
+    const [y2, m2] = cat.goalDate.split('-').map(Number);
+    return (y2 * 12 + m2) - (y1 * 12 + m1);
+  }
+  return periodMonths({
+    goal_period: cat.goalPeriod, goal_every: cat.goalEvery, goal_unit: cat.goalUnit,
+  });
+}
+
+/** The inverse of fundGoals: when more has been assigned than exists, take it
+ *  back, starting with the categories whose money is needed furthest out.
+ *
+ *  A category can only give back what is still sitting there — money already
+ *  spent can't be unassigned without driving Available negative, which would
+ *  turn an over-assignment into an overspend. Returns what it managed to
+ *  recover, which can be less than the shortfall if the money has been spent. */
+export function recoverOverassigned(db, month) {
+  const state = buildState(db, month);
+  let short = -state.readyToAssign;
+  if (short <= 0) return { recovered: 0, shortfall: 0, categories: [] };
+
+  const candidates = [];
+  for (const g of state.groups) {
+    for (const c of g.categories) {
+      const givable = Math.max(0, Math.min(c.assigned, c.available));
+      if (givable > 0) candidates.push({ ...c, givable, horizon: fundingHorizon(c, month) });
+    }
+  }
+  // furthest-out money first; ties fall back to the larger pot so fewer
+  // categories get disturbed
+  candidates.sort((a, b) => (b.horizon - a.horizon) || (b.givable - a.givable));
+
+  const touched = [];
+  let recovered = 0;
+  for (const c of candidates) {
+    if (short <= 0) break;
+    const take = Math.min(c.givable, short);
+    upsertAssign(db, month, c.id, c.assigned - take);
+    touched.push({ id: c.id, name: c.name, amount: take });
+    recovered += take;
+    short -= take;
+  }
+  return { recovered, shortfall: Math.max(0, short), categories: touched };
+}
+
 /** Moves assigned money between categories (or Ready to Assign when a side is
  *  null) by adjusting this month's assignments. */
 export function moveMoney(db, month, fromCategoryId, toCategoryId, amount) {

@@ -1,7 +1,7 @@
 {
   "name": "budget-app",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "concurrently -k \"npm:dev:api\" \"npm:dev:web\"",
@@ -17,7 +17,10 @@
     "test:bulk-delete": "node test-bulk-delete.mjs",
     "test:account-delete": "node test-account-delete.mjs",
     "test:changelog": "node test-changelog.mjs",
-    "test:goals": "node test-goals.mjs"
+    "test:goals": "node test-goals.mjs",
+    "test:recover": "node test-recover.mjs",
+    "test:cashflow": "node test-cashflow.mjs",
+    "seed": "node seed-testing-data.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",

@@ -8,7 +8,7 @@ import { claimToken, listExternalAccounts, syncConnection } from './sync.js';
 import { allPayeeCategories, forgetCategory, recordChoice } from './payees.js';
 import {
   buildState, currentMonth, shiftMonth, setAssigned, coverOverspending, assignLastMonth,
-  moveMoney, fundGoals, principalOf,
+  moveMoney, fundGoals, principalOf, recoverOverassigned,
 } from './budget.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,7 +53,11 @@ app.post('/api/auto-assign', (req, res) => {
   if (mode === 'cover-overspending') coverOverspending(req.db, month);
   else if (mode === 'assigned-last-month') assignLastMonth(req.db, month);
   else if (mode === 'fund-goals') fundGoals(req.db, month);
-  else return bad(res, 'unknown mode');
+  else if (mode === 'recover-overassigned') {
+    // reports what it took back, since it can fall short when the money has
+    // already been spent
+    return res.json({ ok: true, ...recoverOverassigned(req.db, month) });
+  } else return bad(res, 'unknown mode');
   res.json({ ok: true });
 });
 
@@ -91,10 +95,16 @@ app.post('/api/accounts', (req, res) => {
   if (!name?.trim()) return bad(res, 'Enter a name');
   if (!['cash', 'credit', 'loan'].includes(type)) return bad(res, 'Choose an account type');
   if (startingBalance != null && !Number.isInteger(startingBalance)) return bad(res, 'Enter a valid balance');
+  // An account you've had for years opened before today. createAccount has
+  // always taken this date — the endpoint just never passed it on, which dated
+  // every opening balance to the day the account was added and pushed it into
+  // the wrong month on every report that looks backwards.
+  if (req.body.date != null && !DATE_RE.test(req.body.date)) return bad(res, 'Choose a valid date');
   const loan = loanFields(req.body, res);
   if (!loan) return;
   const id = createAccount(req.db, {
     name: name.trim(), type, startingBalance: startingBalance ?? 0,
+    date: req.body.date || undefined,
     apr: loan.apr, loanMonths: loan.loanMonths,
   });
   res.json({ id });
@@ -590,6 +600,49 @@ app.post('/api/transactions/bulk-delete', (req, res) => {
 });
 
 // ---------- reports ----------
+// Money in against money out, month by month. Same exclusions as the spending
+// report so the two agree: loan accounts are tracking-only, and transfers,
+// starting balances and reconciliation adjustments are not real flows.
+app.get('/api/reports/cashflow', (req, res) => {
+  const months = Math.min(60, Math.max(1, Number(req.query.months) || 3));
+  const start = shiftMonth(currentMonth(), -(months - 1));
+  const rows = req.db.prepare(`
+    SELECT substr(t.date, 1, 7) AS month,
+           SUM(CASE WHEN t.is_income = 1 THEN t.amount ELSE 0 END) AS income,
+           SUM(CASE WHEN t.is_income = 0 AND t.amount < 0 THEN -t.amount ELSE 0 END) AS expense
+    FROM transactions t
+    JOIN accounts a ON a.id = t.account_id AND a.type != 'loan'
+    WHERE substr(t.date, 1, 7) >= ?
+      AND t.is_transfer = 0 AND t.is_starting = 0
+      AND t.payee != 'Balance Adjustment'
+    GROUP BY month
+  `).all(start);
+  const byMonth = new Map(rows.map(r => [r.month, r]));
+
+  // every month in the window appears, including empty ones — a gap in the
+  // series would otherwise read as a month that didn't happen
+  const series = [];
+  for (let i = months - 1; i >= 0; i--) {
+    const m = shiftMonth(currentMonth(), -i);
+    const r = byMonth.get(m);
+    const income = r?.income ?? 0;
+    const expense = r?.expense ?? 0;
+    series.push({ month: m, income, expense, net: income - expense });
+  }
+  const totals = series.reduce((a, s) => ({
+    income: a.income + s.income, expense: a.expense + s.expense, net: a.net + s.net,
+  }), { income: 0, expense: 0, net: 0 });
+  res.json({
+    months: series,
+    totals,
+    average: {
+      income: Math.round(totals.income / months),
+      expense: Math.round(totals.expense / months),
+      net: Math.round(totals.net / months),
+    },
+  });
+});
+
 app.get('/api/reports/spending', (req, res) => {
   const start = DATE_RE.test(req.query.start || '') ? req.query.start : '0000-01-01';
   const end = DATE_RE.test(req.query.end || '') ? req.query.end : '9999-12-31';

@@ -14,6 +14,36 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.0',
+    date: '2026-07-30',
+    title: 'Undo an overassignment, and see money in vs out',
+    items: [
+      {
+        heading: 'The tab tells you which budget is open',
+        body: 'The browser tab now carries the name of the budget you have open '
+          + 'rather than a fixed title, so two budgets in two tabs are easy to '
+          + 'tell apart. Sprout has a proper icon there too.',
+      },
+      {
+        heading: 'A new Income vs Expenses report',
+        body: 'The Reports tab now has a second view: what came in against what '
+          + 'went out, month by month. Money in rises above the line, money out '
+          + 'falls below it, and a line tracks whether you finished each month '
+          + 'ahead or behind. It opens on the last three months and can look '
+          + 'back up to two years.',
+      },
+      {
+        heading: 'Put back money you did not have',
+        body: 'Assign more than you have and the number at the top turns red. '
+          + 'The Assign menu now offers to put it right: it takes money back '
+          + 'from the categories that need it furthest in the future — anything '
+          + 'without a goal first, then yearly, then quarterly — and leaves next '
+          + 'week\'s money where it is. Anything already spent stays spent, and '
+          + 'it tells you if it could not cover the whole amount.',
+      },
+    ],
+  },
+  {
     version: '0.5.0',
     date: '2026-07-30',
     title: 'Goals on your own schedule',
@@ -39,8 +69,9 @@ export const CHANGELOG = [
       },
       {
         heading: 'Tidier budget and summary',
-        body: 'Categories sit indented under their group heading, and the summary '
-          + 'panel on the right has room to breathe.',
+        body: 'Categories sit indented under their group heading, the summary '
+          + 'panel on the right has room to breathe, and date fields match the '
+          + 'rest of the app instead of standing out.',
       },
     ],
   },
