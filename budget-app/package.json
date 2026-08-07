@@ -19,7 +19,8 @@
     "test:changelog": "node test-changelog.mjs",
     "test:goals": "node test-goals.mjs",
     "test:recover": "node test-recover.mjs",
-    "test:cashflow": "node test-cashflow.mjs"
+    "test:cashflow": "node test-cashflow.mjs",
+    "seed": "node seed-testing-data.mjs"
   },
   "dependencies": {
     "@simplewebauthn/server": "^13.3.2",

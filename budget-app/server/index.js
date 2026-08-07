@@ -95,10 +95,16 @@ app.post('/api/accounts', (req, res) => {
   if (!name?.trim()) return bad(res, 'Enter a name');
   if (!['cash', 'credit', 'loan'].includes(type)) return bad(res, 'Choose an account type');
   if (startingBalance != null && !Number.isInteger(startingBalance)) return bad(res, 'Enter a valid balance');
+  // An account you've had for years opened before today. createAccount has
+  // always taken this date — the endpoint just never passed it on, which dated
+  // every opening balance to the day the account was added and pushed it into
+  // the wrong month on every report that looks backwards.
+  if (req.body.date != null && !DATE_RE.test(req.body.date)) return bad(res, 'Choose a valid date');
   const loan = loanFields(req.body, res);
   if (!loan) return;
   const id = createAccount(req.db, {
     name: name.trim(), type, startingBalance: startingBalance ?? 0,
+    date: req.body.date || undefined,
     apr: loan.apr, loanMonths: loan.loanMonths,
   });
   res.json({ id });

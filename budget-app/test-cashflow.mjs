@@ -135,5 +135,19 @@ check('spending total matches this month\'s money out',
   Math.abs(spend.total) === monthOf(r, MONTH).expense,
   `spending ${Math.abs(spend.total)} vs cashflow ${monthOf(r, MONTH).expense}`);
 
+// ---------- an opening balance can be dated in the past ----------
+const backdated = shift(MONTH, -2);
+const older = (await call('/api/accounts', {
+  method: 'POST',
+  body: { name: 'Old Account', type: 'cash', startingBalance: 500000, date: `${backdated}-04` },
+})).json.id;
+const openingRow = (await call(`/api/transactions?accountId=${older}`)).json.find(t => t.is_starting);
+check('an opening balance keeps the date it was given', openingRow?.date === `${backdated}-04`,
+  `dated ${openingRow?.date}, expected ${backdated}-04`);
+check('a bad opening date is refused',
+  (await call('/api/accounts', {
+    method: 'POST', body: { name: 'Bad', type: 'cash', startingBalance: 100, date: 'last tuesday' },
+  })).status === 400);
+
 console.log(out.join('\n'));
 console.log(out.some(l => l.startsWith('FAIL')) ? '\nFAILED' : '\nAll cashflow checks passed');
