@@ -87,10 +87,13 @@ export default function App() {
         <ReportsView />
       ) : (
         <AccountView
-          key={`${activeBudgetId}:${view.type}:${view.accountId ?? view.categoryId}`}
+          // the filter is part of the identity: arriving at All Accounts already
+          // filtered has to remount, or the register keeps the previous filter
+          key={`${activeBudgetId}:${view.type}:${view.accountId ?? view.categoryId}:${view.filter ?? ''}`}
           state={state}
           accountId={view.accountId}
           categoryId={view.categoryId}
+          initialFilter={view.filter}
           refresh={refresh}
           // the account this view is showing no longer exists, so fall back to
           // the budget rather than rendering an empty register

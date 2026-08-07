@@ -526,6 +526,16 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .txn-grid.row:hover .sel-cell input,
 .txn-grid.row.selected .sel-cell input,
 .txn-grid.row .sel-cell input:focus-visible { opacity: 1; }
+.filter-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 14px; border-bottom: 1px solid var(--row-border);
+}
+.filter-search { flex: 1 1 240px; min-width: 0; max-width: 420px; }
+.filter-bar select { width: auto; flex: 0 1 200px; min-width: 0; }
+.filter-count {
+  margin-left: auto; font-size: 12px; color: var(--muted);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
 .selection-bar {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 14px;

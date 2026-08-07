@@ -94,7 +94,17 @@ export default function BudgetView({ state, month, setMonth, refresh, setView })
         <div className="table-body">
           {(state.uncategorized.activityM !== 0 || state.uncategorized.availableM !== 0) && filter === 'all' && (
             <div className="grid-row row">
-              <div className="cat-cell"><span className="cat-name plain">Uncategorized Transactions</span></div>
+              {/* indented like the categories it sits among, and clicking it
+                  opens the register filtered to exactly these transactions */}
+              <div className="cat-cell indent">
+                <span
+                  className="cat-name"
+                  title="Show these transactions so they can be categorized"
+                  onClick={() => setView({ type: 'account', accountId: 'all', filter: 'uncategorized' })}
+                >
+                  Uncategorized Transactions
+                </span>
+              </div>
               <div className="num muted">–</div>
               <div className="num">{fmt(state.uncategorized.activityM)}</div>
               <div className="num"><span className="pill yellow">{fmt(state.uncategorized.availableM)}</span></div>

@@ -29,6 +29,20 @@ export const CHANGELOG = [
           + 'fund no longer holds what it needs.',
       },
       {
+        heading: 'Search and filter the register',
+        body: 'Every transaction list now has a search box and a category picker. '
+          + 'Search matches payees, memos, categories, account names and amounts, '
+          + 'and several words narrow rather than widen — "costco 84" finds the '
+          + 'Costco trip that cost $84. The count and total of what you are '
+          + 'looking at sit beside it, and selecting rows still works, so you can '
+          + 'filter down and delete the lot.',
+      },
+      {
+        heading: 'Uncategorized transactions are one click away',
+        body: 'Clicking "Uncategorized Transactions" on the budget opens every '
+          + 'account filtered to exactly those, ready to be filed.',
+      },
+      {
         heading: 'Start the month over',
         body: 'The Assign menu can now clear every assignment at once and put the '
           + 'lot back in Ready to Assign, so you can budget the month again from '
