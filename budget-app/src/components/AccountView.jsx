@@ -190,7 +190,7 @@ export default function AccountView({ state, accountId, categoryId, initialFilte
         />
       )}
 
-      {account?.type === 'loan' && <LoanPanel key={account.id} account={account} refresh={refresh} />}
+      {account?.type === 'loan' && <LoanPanel key={account.id} account={account} groups={state.groups} refresh={refresh} />}
 
       <div className="filter-bar">
         <input

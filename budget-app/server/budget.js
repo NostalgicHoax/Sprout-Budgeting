@@ -288,6 +288,7 @@ export function buildState(db, month) {
       balance: balances.get(a.id) ?? 0,
       apr: a.apr, loanMonths: a.loan_months,
       connectionId: a.connection_id, externalId: a.external_id,
+      paymentCategoryId: a.payment_category_id ?? null,
       // actual month-end balances, so the payoff chart can show real progress
       // behind the projection rather than only the plan
       ...(a.type === 'loan' ? { history: loanHistory(db, a.id) } : {}),

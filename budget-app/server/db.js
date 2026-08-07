@@ -15,7 +15,11 @@ export function createSchema(db) {
       apr REAL,
       loan_months INTEGER,
       connection_id INTEGER,
-      external_id TEXT
+      external_id TEXT,
+      -- loan accounts only: the category a payment on this loan is budgeted to.
+      -- Credit cards get an auto-created payment category instead; a loan picks
+      -- one the user already has.
+      payment_category_id INTEGER REFERENCES categories(id)
     );
     CREATE TABLE connections (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,6 +128,12 @@ export function migrateBudgetDb(db) {
   // what was actually paid while the balance moves by principal only.
   if (!cols.includes('interest')) {
     db.exec('ALTER TABLE transactions ADD COLUMN interest INTEGER');
+  }
+  // A loan can name the category its payments are budgeted to. Nothing to
+  // backfill: a null link just means payments stay budget-neutral, which is how
+  // they behaved before.
+  if (!acctCols.includes('payment_category_id')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN payment_category_id INTEGER');
   }
   // Goals gained a period. Existing goals were monthly amounts, so they are
   // stamped as such rather than left null — null would otherwise have to mean

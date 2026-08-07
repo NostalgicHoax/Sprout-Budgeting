@@ -176,5 +176,87 @@ check('deleting a payment restores the principal',
 check('deleting removes both sides of the pair',
   (await call(`/api/transactions?accountId=${checking}`)).json.filter(t => t.transfer_account_id === loan).length === 11);
 
+const state = async () => (await call('/api/state')).json;
+const MONTH = (await state()).month;
+
+
+// ---------- a loan can budget its payments to a category ----------
+const payGroup = (await call('/api/groups', { method: 'POST', body: { name: 'Debt' } })).json.id;
+const carCat = (await call('/api/categories', { method: 'POST', body: { groupId: payGroup, name: 'Car Payment' } })).json.id;
+const wallet = (await call('/api/accounts', {
+  method: 'POST', body: { name: 'Main', type: 'cash', startingBalance: 1000000 },
+})).json.id;
+const note = (await call('/api/accounts', {
+  method: 'POST', body: { name: 'Truck Note', type: 'loan', startingBalance: -2000000, apr: 6, loanMonths: 48 },
+})).json.id;
+
+const acctOf = async id => (await state()).accounts.find(a => a.id === id);
+const catOf = async id => (await state()).groups.flatMap(g => g.categories).find(c => c.id === id);
+
+check('a loan starts with no payment category', (await acctOf(note)).paymentCategoryId == null);
+
+let lr = await call(`/api/accounts/${note}`, { method: 'PATCH', body: { paymentCategoryId: carCat } });
+check('the link can be set', lr.status === 200 && (await acctOf(note)).paymentCategoryId === carCat,
+  `got ${(await acctOf(note)).paymentCategoryId}`);
+
+// an unlinked loan's payment is budget-neutral; a linked one lands in the category
+const catBefore = await catOf(carCat);
+await call('/api/loan-payment', {
+  method: 'POST', body: { fromAccountId: wallet, loanAccountId: note, amount: 47000, date: `${MONTH}-06` },
+});
+const catAfter = await catOf(carCat);
+check('a payment lands in the linked category without being asked',
+  catAfter.activity === catBefore.activity - 47000, `activity ${catBefore.activity} -> ${catAfter.activity}`);
+
+// the loan side is unaffected: still principal-only, still steps the term
+const noteAfter2 = await acctOf(note);
+check('the loan still moves by principal only', -noteAfter2.balance < 2000000 && -noteAfter2.balance > 1950000,
+  `owed ${-noteAfter2.balance}`);
+check('and still counts the payment off the term', noteAfter2.loanMonths === 47,
+  `loanMonths ${noteAfter2.loanMonths}`);
+
+// an explicit category on the call still wins over the link
+const oneOff = (await call('/api/categories', { method: 'POST', body: { groupId: payGroup, name: 'One Off' } })).json.id;
+await call('/api/loan-payment', {
+  method: 'POST',
+  body: { fromAccountId: wallet, loanAccountId: note, amount: 47000, date: `${MONTH}-07`, categoryId: oneOff },
+});
+check('an explicit category overrides the link', (await catOf(oneOff)).activity === -47000,
+  `activity ${(await catOf(oneOff)).activity}`);
+
+// ---------- guards ----------
+check('a cash account cannot budget its payments',
+  (await call(`/api/accounts/${wallet}`, { method: 'PATCH', body: { paymentCategoryId: carCat } })).status === 400);
+check('an unknown category is refused',
+  (await call(`/api/accounts/${note}`, { method: 'PATCH', body: { paymentCategoryId: 999999 } })).status === 400);
+
+const card = (await call('/api/accounts', { method: 'POST', body: { name: 'A Card', type: 'credit' } })).json.id;
+const cardCat = (await state()).groups.flatMap(g => g.categories).find(c => c.linkedAccountId === card);
+check('a credit card payment category is refused',
+  (await call(`/api/accounts/${note}`, { method: 'PATCH', body: { paymentCategoryId: cardCat.id } })).status === 400,
+  `cardCat ${cardCat?.id}`);
+
+// deleting the category out from under the loan would leave a dangling link
+const delR = await call(`/api/categories/${carCat}`, { method: 'DELETE' });
+check('the linked category cannot just be deleted', delR.status === 409, JSON.stringify(delR.json));
+
+// ---------- unlinking ----------
+await call(`/api/accounts/${note}`, { method: 'PATCH', body: { paymentCategoryId: null } });
+check('the link can be cleared', (await acctOf(note)).paymentCategoryId == null);
+const cleared = await catOf(carCat);
+await call('/api/loan-payment', {
+  method: 'POST', body: { fromAccountId: wallet, loanAccountId: note, amount: 47000, date: `${MONTH}-08` },
+});
+check('and payments go back to budget-neutral',
+  (await catOf(carCat)).activity === cleared.activity,
+  `activity ${cleared.activity} -> ${(await catOf(carCat)).activity}`);
+
+// ---------- editing other loan fields leaves the link alone ----------
+await call(`/api/accounts/${note}`, { method: 'PATCH', body: { paymentCategoryId: carCat } });
+await call(`/api/accounts/${note}`, { method: 'PATCH', body: { apr: 7 } });
+check('changing the APR does not drop the link',
+  (await acctOf(note)).paymentCategoryId === carCat && (await acctOf(note)).apr === 7,
+  `link ${(await acctOf(note)).paymentCategoryId}, apr ${(await acctOf(note)).apr}`);
+
 console.log(out.join('\n'));
 console.log(out.some(l => l.startsWith('FAIL')) ? '\nFAILED' : '\nAll loan payment checks passed');

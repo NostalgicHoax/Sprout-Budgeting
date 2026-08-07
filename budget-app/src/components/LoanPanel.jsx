@@ -137,7 +137,7 @@ function PayoffChart({ baseline, scenario, startBalance, actual = [] }) {
   );
 }
 
-export default function LoanPanel({ account, refresh }) {
+export default function LoanPanel({ account, groups = [], refresh }) {
   const [detailsAnchor, setDetailsAnchor] = useState(null);
   const [extraInput, setExtraInput] = useState('');
   const [lumpInput, setLumpInput] = useState('');
@@ -234,6 +234,7 @@ export default function LoanPanel({ account, refresh }) {
         <LoanDetailsPopover
           anchor={detailsAnchor}
           account={account}
+          groups={groups}
           refresh={refresh}
           onClose={() => setDetailsAnchor(null)}
         />
@@ -242,9 +243,10 @@ export default function LoanPanel({ account, refresh }) {
   );
 }
 
-function LoanDetailsPopover({ anchor, account, refresh, onClose }) {
+function LoanDetailsPopover({ anchor, account, groups = [], refresh, onClose }) {
   const [aprInput, setAprInput] = useState(account.apr != null ? String(account.apr) : '');
   const [monthsInput, setMonthsInput] = useState(account.loanMonths != null ? String(account.loanMonths) : '');
+  const [payCat, setPayCat] = useState(account.paymentCategoryId != null ? String(account.paymentCategoryId) : '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -263,7 +265,10 @@ function LoanDetailsPopover({ anchor, account, refresh, onClose }) {
     setSaving(true);
     setError(null);
     try {
-      await api(`/api/accounts/${account.id}`, { method: 'PATCH', body: { apr, loanMonths } });
+      await api(`/api/accounts/${account.id}`, {
+        method: 'PATCH',
+        body: { apr, loanMonths, paymentCategoryId: payCat === '' ? null : Number(payCat) },
+      });
       await refresh();
       onClose();
     } catch (err) {
@@ -291,6 +296,23 @@ function LoanDetailsPopover({ anchor, account, refresh, onClose }) {
           Payments left (months)
           <input inputMode="numeric" placeholder="e.g. 60" value={monthsInput} onChange={e => setMonthsInput(e.target.value)} />
         </label>
+        <label>
+          Budget payments to
+          <select value={payCat} onChange={e => setPayCat(e.target.value)}>
+            <option value="">Don't budget these payments</option>
+            {groups.filter(g => !g.isPaymentGroup).map(g => (
+              <optgroup key={g.id} label={g.name}>
+                {g.categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+        <p className="panel-hint">
+          Payments recorded against this loan land in that category, so they show
+          up in the budget instead of passing straight through.
+        </p>
         {error && <p className="soft-error">{error}</p>}
         <div className="popover-actions">
           <button type="button" className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>

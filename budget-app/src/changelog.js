@@ -14,6 +14,21 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.2',
+    date: '2026-07-30',
+    title: 'Loan payments can land in a category',
+    items: [
+      {
+        heading: 'Budget your loan payments',
+        body: 'Open Loan Details on any loan and pick the category its payments '
+          + 'should come out of. From then on, recording a payment puts it in '
+          + 'that category automatically, so it shows up in the budget instead of '
+          + 'passing straight through. Leave it unset and payments behave as they '
+          + 'did before.',
+      },
+    ],
+  },
+  {
     version: '0.6.1',
     date: '2026-07-30',
     title: 'Goals count money you already spent',
