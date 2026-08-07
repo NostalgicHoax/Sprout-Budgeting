@@ -726,6 +726,9 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .pop-item:hover { background: var(--active); color: var(--bright); border-color: var(--border2); }
 .pop-item.disabled { opacity: .45; cursor: default; }
 .pop-item.disabled:hover { background: var(--panel); color: var(--soft); border-color: var(--border); }
+/* result line for an action that can come up short, e.g. recovering money that
+   has partly been spent already */
+.pop-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 8px 2px 0; }
 .pop-amt { color: #eceef2; }
 
 /* ============ budget menu (sidebar header dropdown) ============ */

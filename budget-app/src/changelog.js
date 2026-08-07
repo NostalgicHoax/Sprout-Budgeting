@@ -38,6 +38,15 @@ export const CHANGELOG = [
           + 'ahead.',
       },
       {
+        heading: 'Undo an overassignment in one click',
+        body: 'Assign more than you have and the number at the top turns red. '
+          + 'The Assign menu now offers to put it right: it takes money back '
+          + 'from the categories that need it furthest in the future — anything '
+          + 'without a goal first, then yearly, then quarterly — and leaves next '
+          + 'week\'s money where it is. Anything already spent stays spent, and '
+          + 'it tells you if it could not cover the whole thing.',
+      },
+      {
         heading: 'Tidier budget and summary',
         body: 'Categories sit indented under their group heading, the summary '
           + 'panel on the right has room to breathe, and date fields match the '

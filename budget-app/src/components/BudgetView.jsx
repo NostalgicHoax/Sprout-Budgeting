@@ -531,11 +531,29 @@ function RtaAssignMenu({ anchor, state, month, refresh, onClose }) {
     (s, c) => s + (c.goal > 0 ? Math.max(0, c.goal - c.available) : 0), 0
   );
   const canFund = goalGap > 0 && state.readyToAssign > 0;
+  // the mirror of Fund goals: how much has been assigned beyond what exists,
+  // and how much of it is still sitting in categories to be taken back
+  const over = Math.max(0, -state.readyToAssign);
+  const givable = allCats.reduce((s, c) => s + Math.max(0, Math.min(c.assigned, c.available)), 0);
+  const canRecover = over > 0 && givable > 0;
+  const [msg, setMsg] = useState(null);
 
   async function fundGoals() {
     await api('/api/auto-assign', { method: 'POST', body: { month, mode: 'fund-goals' } });
     await refresh();
     onClose();
+  }
+
+  async function recover() {
+    const r = await api('/api/auto-assign', { method: 'POST', body: { month, mode: 'recover-overassigned' } });
+    await refresh();
+    // money already spent can't be pulled back, so this can come up short —
+    // say so rather than closing on a job half done
+    if (r.shortfall > 0) {
+      setMsg(`Took back ${fmt(r.recovered)}. Still ${fmt(r.shortfall)} over — the rest has already been spent.`);
+    } else {
+      onClose();
+    }
   }
 
   if (step === 'assign') {
@@ -575,6 +593,19 @@ function RtaAssignMenu({ anchor, state, month, refresh, onClose }) {
           <span>🎯 Fund goals</span>
           <span className="pop-amt">{fmt(Math.min(goalGap, Math.max(0, state.readyToAssign)))}</span>
         </div>
+        {over > 0 && (
+          <div
+            className={`pop-item ${canRecover ? '' : 'disabled'}`}
+            title={canRecover
+              ? 'Unassign from the categories whose money is needed furthest out, until the overassignment is cleared'
+              : 'Nothing left to take back — the overassigned money has been spent'}
+            onClick={() => canRecover && recover()}
+          >
+            <span>↩ Recover overassigned</span>
+            <span className="pop-amt">{fmt(Math.min(over, givable))}</span>
+          </div>
+        )}
+        {msg && <div className="pop-note">{msg}</div>}
       </div>
     </>
   );
