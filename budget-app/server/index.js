@@ -8,7 +8,7 @@ import { claimToken, listExternalAccounts, syncConnection } from './sync.js';
 import { allPayeeCategories, forgetCategory, recordChoice } from './payees.js';
 import {
   buildState, currentMonth, shiftMonth, setAssigned, coverOverspending, assignLastMonth,
-  moveMoney, fundGoals, principalOf, recoverOverassigned,
+  moveMoney, fundGoals, principalOf, recoverOverassigned, resetAssignments,
 } from './budget.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -53,7 +53,10 @@ app.post('/api/auto-assign', (req, res) => {
   if (mode === 'cover-overspending') coverOverspending(req.db, month);
   else if (mode === 'assigned-last-month') assignLastMonth(req.db, month);
   else if (mode === 'fund-goals') fundGoals(req.db, month);
-  else if (mode === 'recover-overassigned') {
+  else if (mode === 'reset-assignments') {
+    // hands the whole month back to Ready to Assign to be budgeted again
+    return res.json({ ok: true, ...resetAssignments(req.db, month) });
+  } else if (mode === 'recover-overassigned') {
     // reports what it took back, since it can fall short when the money has
     // already been spent
     return res.json({ ok: true, ...recoverOverassigned(req.db, month) });

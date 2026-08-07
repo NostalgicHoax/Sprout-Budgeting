@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fmt, parseAmount } from '../money.js';
 import { api } from '../api.js';
 import SecurityModal from './SecurityModal.jsx';
 import ConnectionsModal from './ConnectionsModal.jsx';
 import ChangelogModal, { hasUnreadChangelog, markChangelogSeen, lastSeenVersion } from './ChangelogModal.jsx';
+import ResizeHandle from './ResizeHandle.jsx';
 import { APP_VERSION } from '../changelog.js';
 
 const GROUPS = [
@@ -32,6 +33,42 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   // back on every re-render in between
   const [unreadNews, setUnreadNews] = useState(hasUnreadChangelog);
   const [railed, setRailed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
+  const [width, setWidth] = useState(() => Number(localStorage.getItem('sidebarWidth')) || 300);
+
+  // the pane reads its width from a variable so a drag can set it; the .railed
+  // rule is more specific, so a collapsed sidebar keeps its rail width and the
+  // stored width waits intact for when it opens again
+  useEffect(() => {
+    document.documentElement.style.setProperty('--side-w', `${width}px`);
+  }, [width]);
+
+  const SIDE_MIN = 210, SIDE_MAX = 480, SIDE_COLLAPSE = 170, PULL_OPEN = 45;
+  function dragSide(dx) {
+    if (railed) {
+      // a collapsed pane has no width to grow from — it takes a deliberate pull
+      // outwards to reopen, so a stray nudge doesn't
+      if (dx > 0) {
+        pull.current += dx;
+        if (pull.current > PULL_OPEN) { pull.current = 0; setRailed(false); localStorage.setItem('sidebarCollapsed', '0'); }
+      }
+      return;
+    }
+    const next = width + dx;
+    if (next < SIDE_COLLAPSE) {
+      setRailed(true);
+      localStorage.setItem('sidebarCollapsed', '1');
+      return;
+    }
+    setWidth(Math.min(SIDE_MAX, Math.max(SIDE_MIN, next)));
+  }
+  const pull = useRef(0);
+  const sideHandle = (
+    <ResizeHandle
+      label={railed ? 'Drag right to open the sidebar' : 'Drag to resize the sidebar'}
+      onDrag={dragSide}
+      onDone={() => { pull.current = 0; localStorage.setItem('sidebarWidth', String(width)); }}
+    />
+  );
 
   const [changelogSince, setChangelogSince] = useState(null);
 
@@ -64,6 +101,7 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   if (railed) {
     return (
       <aside className="sidebar railed">
+        {sideHandle}
         <button className="panel-toggle rail-toggle" title="Expand sidebar" onClick={toggleRail}>»</button>
         <div className="sidebar-logo rail-logo" title={activeBudget?.name ?? 'Budget'}>🌿</div>
         <nav className="rail-nav">
@@ -97,6 +135,7 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
 
   return (
     <aside className="sidebar">
+      {sideHandle}
       <div className="sidebar-head clickable" onClick={() => setMenuOpen(o => !o)}>
         <div className="sidebar-logo">🌿</div>
         <div className="sidebar-title">

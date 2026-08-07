@@ -14,6 +14,51 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.1',
+    date: '2026-07-30',
+    title: 'Goals count money you already spent',
+    items: [
+      {
+        heading: 'A funded goal stays funded after you spend it',
+        body: 'A $20 monthly gym goal that you funded and then spent still read '
+          + '"$0 of $20" and asked for another $20. Progress was being measured '
+          + 'against what was left in the category rather than what you put in, '
+          + 'so spending undid it. It now counts the money you budgeted, whether '
+          + 'or not it has been spent yet. Goals that save toward a date are '
+          + 'unchanged: spending the holiday fund really does mean the holiday '
+          + 'fund no longer holds what it needs.',
+      },
+      {
+        heading: 'Resize the side panels',
+        body: 'Drag the edge where either side panel meets the middle to make it '
+          + 'wider or narrower. Drag it far enough towards the outside and the '
+          + 'panel collapses; drag a collapsed one back towards the middle and it '
+          + 'opens again. Sprout remembers the widths you chose.',
+      },
+      {
+        heading: 'Search and filter the register',
+        body: 'Every transaction list now has a search box and a category picker. '
+          + 'Search matches payees, memos, categories, account names and amounts, '
+          + 'and several words narrow rather than widen — "costco 84" finds the '
+          + 'Costco trip that cost $84. The count and total of what you are '
+          + 'looking at sit beside it, and selecting rows still works, so you can '
+          + 'filter down and delete the lot.',
+      },
+      {
+        heading: 'Uncategorized transactions are one click away',
+        body: 'Clicking "Uncategorized Transactions" on the budget opens every '
+          + 'account filtered to exactly those, ready to be filed.',
+      },
+      {
+        heading: 'Start the month over',
+        body: 'The Assign menu can now clear every assignment at once and put the '
+          + 'lot back in Ready to Assign, so you can budget the month again from '
+          + 'scratch. It asks twice, and warns you when categories you have '
+          + 'already spent from will show overspent until you fund them again.',
+      },
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-07-30',
     title: 'Undo an overassignment, and see money in vs out',

@@ -5,12 +5,37 @@ import { api } from '../api.js';
 import LoanPanel from './LoanPanel.jsx';
 import ConfirmButton from './ConfirmButton.jsx';
 
-export default function AccountView({ state, accountId, categoryId, refresh, onAccountDeleted }) {
+/** Everything the search box looks at for one row, lower-cased once.
+ *
+ *  Amounts are included both as typed and as displayed, so "12.5" and "12.50"
+ *  both find the same row, and "1,234" works for someone reading the number off
+ *  the screen rather than thinking in cents. */
+function haystack(t) {
+  const abs = Math.abs(t.amount) / 100;
+  return [
+    t.payee, t.memo, t.category_name, t.account_name, t.transfer_account_name,
+    abs.toFixed(2),
+    abs.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+    t.is_income ? 'income inflow' : '',
+    t.is_transfer ? 'transfer' : '',
+    t.category_id == null && !t.is_income && !t.is_transfer && !t.is_starting ? 'uncategorized' : '',
+    t.cleared ? '' : 'pending',
+  ].filter(Boolean).join(' ').toLowerCase();
+}
+
+/** A transaction with no category, ignoring the kinds that never have one. */
+const isUncategorized = t =>
+  t.category_id == null && !t.is_income && !t.is_transfer && !t.is_starting;
+
+export default function AccountView({ state, accountId, categoryId, initialFilter, refresh, onAccountDeleted }) {
   const [txns, setTxns] = useState(null);
   const [payees, setPayees] = useState([]);
   const [payeeCats, setPayeeCats] = useState(new Map());
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [query, setQuery] = useState('');
+  // 'all' | 'uncategorized' | 'cat:<id>'
+  const [catFilter, setCatFilter] = useState(initialFilter === 'uncategorized' ? 'uncategorized' : 'all');
   const [acctMenu, setAcctMenu] = useState(null);
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -63,7 +88,7 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
         const [lo, hi] = lastClicked < index ? [lastClicked, index] : [index, lastClicked];
         const turningOn = !prev.has(id);
         for (let i = lo; i <= hi; i++) {
-          const rowId = txns[i]?.id;
+          const rowId = rows[i]?.id;
           if (rowId == null) continue;
           if (turningOn) next.add(rowId); else next.delete(rowId);
         }
@@ -87,7 +112,19 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
 
   if (!txns) return <main className="main" />;
 
-  const allSelected = txns.length > 0 && txns.every(t => selected.has(t.id));
+  // Every search term has to match, so "costco 84" narrows rather than widens.
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const rows = txns.filter(t => {
+    if (catFilter === 'uncategorized' && !isUncategorized(t)) return false;
+    if (catFilter.startsWith('cat:') && t.category_id !== Number(catFilter.slice(4))) return false;
+    if (!terms.length) return true;
+    const hay = haystack(t);
+    return terms.every(term => hay.includes(term));
+  });
+  const filtering = catFilter !== 'all' || terms.length > 0;
+  const shown = rows.reduce((s, t) => s + t.amount, 0);
+
+  const allSelected = rows.length > 0 && rows.every(t => selected.has(t.id));
   const someSelected = selected.size > 0 && !allSelected;
 
   return (
@@ -155,6 +192,39 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
 
       {account?.type === 'loan' && <LoanPanel key={account.id} account={account} refresh={refresh} />}
 
+      <div className="filter-bar">
+        <input
+          className="filter-search"
+          placeholder="Search payee, memo, category, amount…"
+          value={query}
+          onChange={e => setQuery(e.target.value)}
+        />
+        <select value={catFilter} onChange={e => setCatFilter(e.target.value)} title="Show one category only">
+          <option value="all">All categories</option>
+          <option value="uncategorized">⚠ Uncategorized</option>
+          {state.groups.map(g => (
+            <optgroup key={g.id} label={g.name}>
+              {g.categories.map(c => (
+                <option key={c.id} value={`cat:${c.id}`}>{c.emoji ? `${c.emoji} ` : ''}{c.name}</option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+        {filtering && (
+          <>
+            <span className="filter-count">
+              {rows.length} of {txns.length} · {fmt(shown)}
+            </span>
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => { setQuery(''); setCatFilter('all'); setSelected(new Set()); setLastClicked(null); }}
+            >
+              Clear
+            </button>
+          </>
+        )}
+      </div>
+
       {selected.size > 0 && (
         <div className="selection-bar">
           <span className="selection-count">
@@ -181,7 +251,7 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
             checked={allSelected}
             ref={el => { if (el) el.indeterminate = someSelected; }}
             onChange={() => {
-              setSelected(allSelected ? new Set() : new Set(txns.map(t => t.id)));
+              setSelected(allSelected ? new Set() : new Set(rows.map(t => t.id)));
               setLastClicked(null);
             }}
             title={allSelected ? 'Clear selection' : 'Select every transaction shown'}
@@ -218,7 +288,7 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
             onCancel={() => setAdding(false)}
           />
         )}
-        {txns.map((t, i) =>
+        {rows.map((t, i) =>
           editingId === t.id ? (
             <TxnEditor
               key={t.id}
@@ -256,8 +326,12 @@ export default function AccountView({ state, accountId, categoryId, refresh, onA
             />
           )
         )}
-        {txns.length === 0 && !adding && (
-          <div className="empty-state">No transactions yet. Click “＋ Add Transaction” to record one.</div>
+        {rows.length === 0 && !adding && (
+          <div className="empty-state">
+            {txns.length === 0
+              ? 'No transactions yet. Click “＋ Add Transaction” to record one.'
+              : 'Nothing matches this filter.'}
+          </div>
         )}
       </div>
       </div>
