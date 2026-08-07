@@ -887,6 +887,55 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .modal label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
 .modal-hint { margin: 0; font-size: 12px; color: var(--muted); }
 
+/* ---- income vs expenses ---- */
+/* the report picker sits above the range tabs, so it reads as the outer choice */
+.report-picker { border-bottom: none; padding-bottom: 0; }
+.report-picker .filter-tab { font-weight: 600; }
+.cashflow-wrap { position: relative; }
+.cashflow-chart { width: 100%; height: auto; display: block; }
+.cashflow-legend {
+  display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
+  margin: 2px 0 6px; font-size: 12px; color: var(--soft);
+}
+.cashflow-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.cashflow-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.cashflow-legend i.line { height: 3px; border-radius: 2px; width: 14px; }
+.cashflow-tip {
+  position: absolute; top: 4px; right: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+  background: var(--card); border: 1px solid var(--border2); border-radius: 8px;
+  padding: 9px 11px; font-size: 12px; color: var(--soft);
+  box-shadow: 0 8px 24px rgba(0,0,0,.45); pointer-events: none;
+}
+.cashflow-tip strong { color: var(--bright); font-size: 12px; margin-bottom: 1px; }
+.cashflow-tip span { display: inline-flex; align-items: center; gap: 6px; }
+.cashflow-tip i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+.cashflow-tip b { margin-left: auto; font-variant-numeric: tabular-nums; color: var(--bright); }
+.cashflow-tip .pos b { color: var(--accent); }
+.cashflow-tip .neg b { color: var(--red); }
+.flow-stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px; margin-bottom: 18px;
+}
+.flow-stat {
+  display: flex; flex-direction: column; gap: 2px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px;
+}
+.flow-stat-label { font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--muted2); text-transform: uppercase; }
+.flow-stat-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--bright); }
+.flow-stat-value.pos { color: var(--accent); }
+.flow-stat-value.neg { color: var(--red); }
+.flow-stat-sub { font-size: 11.5px; color: var(--muted); }
+.flow-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 13px; }
+.flow-table th {
+  text-align: left; font-size: 10px; font-weight: 700; letter-spacing: .08em;
+  color: var(--muted2); text-transform: uppercase; padding: 6px 10px; border-bottom: 1px solid var(--border);
+}
+.flow-table td { padding: 7px 10px; border-bottom: 1px solid var(--row-border); color: var(--soft); }
+.flow-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.flow-table td.pos { color: var(--accent); }
+.flow-table td.neg { color: var(--red); }
+
 /* ============ reports ============ */
 .report-body { flex: 1; overflow-y: auto; padding: 18px 22px 30px; }
 .report-legend {

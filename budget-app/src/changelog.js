@@ -16,8 +16,16 @@ export const CHANGELOG = [
   {
     version: '0.6.0',
     date: '2026-07-30',
-    title: 'Undo an overassignment',
+    title: 'Undo an overassignment, and see money in vs out',
     items: [
+      {
+        heading: 'A new Income vs Expenses report',
+        body: 'The Reports tab now has a second view: what came in against what '
+          + 'went out, month by month. Money in rises above the line, money out '
+          + 'falls below it, and a line tracks whether you finished each month '
+          + 'ahead or behind. It opens on the last three months and can look '
+          + 'back up to two years.',
+      },
       {
         heading: 'Put back money you did not have',
         body: 'Assign more than you have and the number at the top turns red. '
