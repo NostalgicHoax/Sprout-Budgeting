@@ -162,5 +162,79 @@ c = await findCat(legacy);
 check('an amount with no period is treated as monthly',
   c.goal === 7500 && c.goalPeriod === 'monthly', `goal ${c.goal}, period ${c.goalPeriod}`);
 
+
+// ---------- funding a goal and then spending it still counts ----------
+// Reported from a real budget: a $20 monthly gym goal, funded with $20 and then
+// spent, read "$0 of $20" and asked for another $20. Progress was measured
+// against Available, which spending drains.
+const gym = await mkCat('Gym');
+await setGoal(gym, { goal: 2000, goalPeriod: 'monthly' });
+const cash = (await call('/api/accounts', {
+  method: 'POST', body: { name: 'Wallet', type: 'cash', startingBalance: 500000 },
+})).json.id;
+await call('/api/assign', { method: 'PUT', body: { month: MONTH, categoryId: gym, amount: 2000 } });
+c = await findCat(gym);
+check('a funded goal reads as funded before spending', c.goal === 2000 && c.funded === 2000 && c.funded >= c.goal,
+  `funded ${c.funded}, goal ${c.goal}`);
+
+await call('/api/transactions', {
+  method: 'POST',
+  body: { accountId: cash, date: `${MONTH}-10`, payee: 'Gym', memo: '', amount: -2000, kind: 'category', categoryId: gym },
+});
+c = await findCat(gym);
+check('spending it empties Available', c.available === 0, `available ${c.available}`);
+check('but the goal still counts as funded', c.goal === 2000 && c.funded === 2000 && c.funded >= c.goal,
+  `funded ${c.funded}, goal ${c.goal}`);
+
+await call('/api/auto-assign', { method: 'POST', body: { month: MONTH, mode: 'fund-goals' } });
+c = await findCat(gym);
+check('Fund Goals leaves a spent-but-funded goal alone', c.assigned === 2000, `assigned ${c.assigned}`);
+
+const gym2 = await mkCat('Gym Two');
+await setGoal(gym2, { goal: 2000, goalPeriod: 'monthly' });
+await call('/api/assign', { method: 'PUT', body: { month: MONTH, categoryId: gym2, amount: 800 } });
+await call('/api/transactions', {
+  method: 'POST',
+  body: { accountId: cash, date: `${MONTH}-11`, payee: 'Gym', memo: '', amount: -2000, kind: 'category', categoryId: gym2 },
+});
+c = await findCat(gym2);
+check('a part-funded goal still shows the shortfall', c.funded === 800, `funded ${c.funded}`);
+
+const roll = await mkCat('Rollover');
+await setGoal(roll, { goal: 2000, goalPeriod: 'monthly' });
+await call('/api/assign', { method: 'PUT', body: { month: shift(MONTH, -1), categoryId: roll, amount: 2000 } });
+c = await findCat(roll);
+check('carried-over money counts as funded', c.funded === 2000 && c.assigned === 0,
+  `funded ${c.funded}, assigned ${c.assigned}`);
+
+const pot = await mkCat('Trip pot');
+await setGoal(pot, { goal: 100000, goalPeriod: 'by-date', goalDate: `${shift(MONTH, 4)}-01` });
+await call('/api/assign', { method: 'PUT', body: { month: MONTH, categoryId: pot, amount: 20000 } });
+const beforeSpend = (await findCat(pot)).funded;
+await call('/api/transactions', {
+  method: 'POST',
+  body: { accountId: cash, date: `${MONTH}-12`, payee: 'Flights', memo: '', amount: -20000, kind: 'category', categoryId: pot },
+});
+c = await findCat(pot);
+check('spending a by-date pot does reduce it', c.funded === 0 && beforeSpend === 20000,
+  `before ${beforeSpend}, after ${c.funded}`);
+
+// ---------- start the month over ----------
+const beforeReset = await state();
+const totalAssigned = beforeReset.groups.flatMap(g => g.categories).reduce((s, x) => s + x.assigned, 0);
+const r2 = await call('/api/auto-assign', { method: 'POST', body: { month: MONTH, mode: 'reset-assignments' } });
+check('reset reports what it handed back', r2.json.returned === totalAssigned,
+  `returned ${r2.json.returned}, expected ${totalAssigned}`);
+check('and names the categories already spent from', r2.json.spent.length > 0,
+  JSON.stringify(r2.json.spent.map(x => x.name)));
+const afterReset = await state();
+check('every category is back to nothing assigned',
+  afterReset.groups.flatMap(g => g.categories).every(x => x.assigned === 0));
+check('Ready to Assign gains the whole lot',
+  afterReset.readyToAssign === beforeReset.readyToAssign + totalAssigned,
+  `${afterReset.readyToAssign} vs ${beforeReset.readyToAssign + totalAssigned}`);
+check('resetting an already-clear month is harmless',
+  (await call('/api/auto-assign', { method: 'POST', body: { month: MONTH, mode: 'reset-assignments' } })).json.returned === 0);
+
 console.log(out.join('\n'));
 console.log(out.some(l => l.startsWith('FAIL')) ? '\nFAILED' : '\nAll goal checks passed');

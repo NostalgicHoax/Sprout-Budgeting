@@ -729,6 +729,11 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 /* result line for an action that can come up short, e.g. recovering money that
    has partly been spent already */
 .pop-note { font-size: 11.5px; color: var(--muted); line-height: 1.45; margin: 8px 2px 0; }
+/* second click of a destructive menu action, matching ConfirmButton's armed look */
+.pop-item.armed {
+  background: var(--red); border-color: var(--red); color: #1a0808; font-weight: 700;
+}
+.pop-item.armed:hover { background: var(--red); color: #1a0808; }
 .pop-amt { color: #eceef2; }
 
 /* ============ budget menu (sidebar header dropdown) ============ */

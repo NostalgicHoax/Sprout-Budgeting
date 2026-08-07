@@ -274,7 +274,7 @@ function CategoryRow({ cat, month, refresh, setView, allGroups, accounts, isPaym
     if (cat.available < 0) {
       status = `Overspent ${fmt(spent)} of ${fmt(funds)}`;
     } else if (cat.goal > 0) {
-      status = cat.available >= cat.goal
+      status = cat.funded >= cat.goal
         ? `🎯 Goal met — ${fmt(cat.goal)}`
         : `${fmt(cat.available)} of ${fmt(cat.goal)} goal`;
     } else if (spent > 0) {
@@ -528,7 +528,7 @@ function RtaAssignMenu({ anchor, state, month, refresh, onClose }) {
   const [step, setStep] = useState('menu');
   const allCats = state.groups.flatMap(g => g.categories);
   const goalGap = allCats.reduce(
-    (s, c) => s + (c.goal > 0 ? Math.max(0, c.goal - c.available) : 0), 0
+    (s, c) => s + (c.goal > 0 ? Math.max(0, c.goal - c.funded) : 0), 0
   );
   const canFund = goalGap > 0 && state.readyToAssign > 0;
   // the mirror of Fund goals: how much has been assigned beyond what exists,
@@ -537,11 +537,26 @@ function RtaAssignMenu({ anchor, state, month, refresh, onClose }) {
   const givable = allCats.reduce((s, c) => s + Math.max(0, Math.min(c.assigned, c.available)), 0);
   const canRecover = over > 0 && givable > 0;
   const [msg, setMsg] = useState(null);
+  // a full reset throws the month away, so it asks twice
+  const [armed, setArmed] = useState(false);
+  const assignedTotal = allCats.reduce((s, c) => s + c.assigned, 0);
+  const spentFrom = allCats.filter(c => c.assigned !== 0 && c.activity < 0).length;
 
   async function fundGoals() {
     await api('/api/auto-assign', { method: 'POST', body: { month, mode: 'fund-goals' } });
     await refresh();
     onClose();
+  }
+
+  async function resetAll() {
+    const r = await api('/api/auto-assign', { method: 'POST', body: { month, mode: 'reset-assignments' } });
+    await refresh();
+    setArmed(false);
+    if (r.spent?.length) {
+      setMsg(`${fmt(r.returned)} back in Ready to Assign. ${r.spent.length} categor${r.spent.length === 1 ? 'y' : 'ies'} you've already spent from will show overspent until you budget for them again.`);
+    } else {
+      onClose();
+    }
   }
 
   async function recover() {
@@ -603,6 +618,20 @@ function RtaAssignMenu({ anchor, state, month, refresh, onClose }) {
           >
             <span>↩ Recover overassigned</span>
             <span className="pop-amt">{fmt(Math.min(over, givable))}</span>
+          </div>
+        )}
+        {assignedTotal !== 0 && (
+          <div
+            className={`pop-item ${armed ? 'armed' : ''}`}
+            title="Set every category back to nothing assigned and start this month's budget again"
+            onClick={() => (armed ? resetAll() : setArmed(true))}
+          >
+            <span>
+              {armed
+                ? `Confirm — clear all ${spentFrom > 0 ? '(some are spent)' : ''}`
+                : '↺ Start this month over'}
+            </span>
+            <span className="pop-amt">{fmt(assignedTotal)}</span>
           </div>
         )}
         {msg && <div className="pop-note">{msg}</div>}

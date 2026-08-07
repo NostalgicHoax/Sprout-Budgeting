@@ -14,6 +14,30 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.1',
+    date: '2026-07-30',
+    title: 'Goals count money you already spent',
+    items: [
+      {
+        heading: 'A funded goal stays funded after you spend it',
+        body: 'A $20 monthly gym goal that you funded and then spent still read '
+          + '"$0 of $20" and asked for another $20. Progress was being measured '
+          + 'against what was left in the category rather than what you put in, '
+          + 'so spending undid it. It now counts the money you budgeted, whether '
+          + 'or not it has been spent yet. Goals that save toward a date are '
+          + 'unchanged: spending the holiday fund really does mean the holiday '
+          + 'fund no longer holds what it needs.',
+      },
+      {
+        heading: 'Start the month over',
+        body: 'The Assign menu can now clear every assignment at once and put the '
+          + 'lot back in Ready to Assign, so you can budget the month again from '
+          + 'scratch. It asks twice, and warns you when categories you have '
+          + 'already spent from will show overspent until you fund them again.',
+      },
+    ],
+  },
+  {
     version: '0.6.0',
     date: '2026-07-30',
     title: 'Undo an overassignment, and see money in vs out',

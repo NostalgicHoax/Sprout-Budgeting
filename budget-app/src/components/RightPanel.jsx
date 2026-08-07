@@ -158,7 +158,7 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
     return () => { live = false; };
   }, [cat.id, month, cat.assigned, cat.activity, cat.available, cat.goal]);
 
-  const underfunded = cat.goal > 0 ? Math.max(0, cat.goal - cat.available) : 0;
+  const underfunded = cat.goal > 0 ? Math.max(0, cat.goal - cat.funded) : 0;
   const fundable = Math.min(underfunded, Math.max(0, rta));
 
   async function saveGoal() {
@@ -312,7 +312,7 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
         {cat.goal > 0 && cat.goalPeriod && cat.goalPeriod !== 'monthly' && (
           <div className="goal-derived">
             {cat.goalPeriod === 'by-date'
-              ? `${fmt(cat.goalAmount)} by ${cat.goalDate} — ${fmt(Math.max(0, cat.goal - cat.available))} due this month`
+              ? `${fmt(cat.goalAmount)} by ${cat.goalDate} — ${fmt(Math.max(0, cat.goal - cat.funded))} due this month`
               : `${fmt(cat.goalAmount)} per ${periodNoun(cat.goalPeriod, cat.goalEvery, cat.goalUnit)} — about ${fmt(cat.goal)} a month`}
           </div>
         )}
@@ -323,12 +323,12 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
                 className="bar-fill"
                 style={{
                   width: `${Math.min(100, (Math.max(0, cat.available) / cat.goal) * 100)}%`,
-                  background: cat.available >= cat.goal ? 'var(--accent)' : 'var(--yellow)',
+                  background: cat.funded >= cat.goal ? 'var(--accent)' : 'var(--yellow)',
                 }}
               />
             </div>
             <div className="insp-goal-status">
-              {cat.available >= cat.goal ? (
+              {cat.funded >= cat.goal ? (
                 <span>Goal met — {fmt(cat.goal)}</span>
               ) : (
                 <>

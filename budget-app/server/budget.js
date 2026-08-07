@@ -261,6 +261,17 @@ export function buildState(db, month) {
         assigned: s.assignedM,
         activity: s.activityM,
         available,
+        // How much this goal has actually been fed, which is not the same as
+        // what's left in the envelope. Fund a $20 gym goal and spend the $20 and
+        // Available is back to nothing — measuring progress against Available
+        // then reads "$0 of $20" and asks for another $20, even though the goal
+        // was met. Adding this month's spending back answers the real question:
+        // was the money there for it.
+        //
+        // A by-date goal is the exception and stays on Available, because it
+        // targets a balance. Spending the holiday fund really does mean the
+        // holiday fund no longer holds what it needs.
+        funded: c.goal_period === 'by-date' ? available : available - Math.min(0, s.activityM),
         segments,
       };
     }),
@@ -374,6 +385,31 @@ export function recoverOverassigned(db, month) {
   return { recovered, shortfall: Math.max(0, short), categories: touched };
 }
 
+/** Clears every assignment for the month, handing the whole lot back to Ready to
+ *  Assign so the month can be budgeted again from scratch.
+ *
+ *  Unlike recoverOverassigned this does not stop at what is unspent, because it
+ *  isn't trying to fix anything — it is a deliberate start-over. Categories
+ *  already spent from will read overspent until they are re-assigned, which is
+ *  true rather than broken: that money is gone and still has to be budgeted
+ *  for. `spent` counts them so the UI can say so before the user commits.
+ *
+ *  Rows are deleted rather than zeroed; a missing row already means nothing
+ *  assigned, and leaving zeroes behind would just be litter. */
+export function resetAssignments(db, month) {
+  const state = buildState(db, month);
+  const cats = state.groups.flatMap(g => g.categories);
+  const assigned = cats.filter(c => c.assigned !== 0);
+  const returned = assigned.reduce((s, c) => s + c.assigned, 0);
+  const spent = cats.filter(c => c.assigned !== 0 && c.activity < 0);
+  db.prepare('DELETE FROM assignments WHERE month = ?').run(month);
+  return {
+    cleared: assigned.length,
+    returned,
+    spent: spent.map(c => ({ id: c.id, name: c.name, activity: c.activity })),
+  };
+}
+
 /** Moves assigned money between categories (or Ready to Assign when a side is
  *  null) by adjusting this month's assignments. */
 export function moveMoney(db, month, fromCategoryId, toCategoryId, amount) {
@@ -393,7 +429,7 @@ export function fundGoals(db, month) {
   for (const g of state.groups) {
     for (const c of g.categories) {
       if (!c.goal || c.goal <= 0) continue;
-      const underfunded = c.goal - c.available;
+      const underfunded = c.goal - c.funded;
       if (underfunded <= 0) continue;
       const add = Math.min(underfunded, rta);
       upsertAssign(db, month, c.id, c.assigned + add);
