@@ -130,6 +130,11 @@ const fun = await group('Whatever');
 const hobbies = await cat(fun, '🎸', 'Hobbies', null);      // no goal on purpose
 const gifts = await cat(fun, '🎁', 'Gifts', null);          // ditto — Recover raids these first
 
+// The loan names the category its payments belong to, once. Every payment below
+// then lands there on its own — nothing is passed per payment, which is the
+// whole point of the link.
+await call(`/api/accounts/${car}`, { method: 'PATCH', body: { paymentCategoryId: carPay } });
+
 // ---------- history ----------
 const txn = body => call('/api/transactions', { method: 'POST', body: { memo: '', ...body } });
 const spend = (accountId, date, payee, amount, categoryId, extra = {}) =>
@@ -188,7 +193,8 @@ for (let i = MONTHS_BACK; i >= 0; i--) {
   // a real loan payment: interest split off, term steps down
   await call('/api/loan-payment', {
     method: 'POST',
-    body: { fromAccountId: checking, loanAccountId: car, amount: $(478), date: day(m, 3), categoryId: carPay },
+    // no categoryId: the loan's linked payment category supplies it
+    body: { fromAccountId: checking, loanAccountId: car, amount: $(478), date: day(m, 3) },
   });
   made++;
 
@@ -206,19 +212,27 @@ for (let i = MONTHS_BACK; i >= 0; i--) {
   }
 }
 
-// ---------- this month's assignments ----------
+// ---------- assignments, every month ----------
+// Budgeting only the current month would leave eight months of spending with
+// nothing assigned against it, and Available carries over — so every category
+// would open deep in the red and the whole sandbox would read as broken.
 const state = await call('/api/state');
 const byName = Object.fromEntries(state.groups.flatMap(g => g.categories).map(c => [c.name, c]));
-const assign = (id, amount) => call('/api/assign', { method: 'PUT', body: { month: THIS, categoryId: id, amount } });
+const assign = (id, amount, month = THIS) =>
+  call('/api/assign', { method: 'PUT', body: { month, categoryId: id, amount } });
 
-for (const [name, amount] of [
+const PLAN = [
   ['Rent', $(1450)], ['Electric', $(95)], ['Cell Service', $(55)], ['Car Payment', $(478)],
   ['Groceries', $(693)], ['Restaurants', $(220)], ['Coffee', $(78)],
   ['Car Insurance', $(110)], ['Registration', $(70)], ['Dentist', $(57)], ['Subscriptions', $(32)],
   ['Iceland Trip', $(320)], ['New Laptop', $(375)],
   ['Hobbies', $(120)], ['Gifts', $(60)],
-]) {
-  if (byName[name]) await assign(byName[name].id, amount);
+];
+for (let i = MONTHS_BACK; i >= 0; i--) {
+  const m = shift(-i);
+  for (const [name, amount] of PLAN) {
+    if (byName[name]) await assign(byName[name].id, amount, m);
+  }
 }
 
 // Deliberately push past what's available so the red "Overassigned" state and
