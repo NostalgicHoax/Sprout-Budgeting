@@ -533,7 +533,11 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
    warnings and income, and a fourth would compete rather than clarify. The tint
    is deliberately faint; it groups the pair at a glance and disappears under
    the row hover and selected states rather than fighting them. */
-.txn-grid.row.debt-row > div { font-style: italic; }
+/* Not the amount columns. Those cells are overflow:hidden on a tight minimum,
+   and an italic glyph leans past its box far enough to clip the last digit —
+   money is the one thing in the row that must never be cut off. Upright
+   figures also stay easier to compare down a column. */
+.txn-grid.row.debt-row > div:not(.num) { font-style: italic; }
 /* :not(.selected) because the selected rule sits earlier in this file with the
    same specificity — without it the tint would win and a selected debt row
    would lose its highlight */
