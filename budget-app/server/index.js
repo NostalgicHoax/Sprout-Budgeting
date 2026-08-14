@@ -125,8 +125,25 @@ app.patch('/api/accounts/:id', (req, res) => {
     if (req.body.apr !== undefined) apr = loan.apr;
     if (req.body.loanMonths !== undefined) loan_months = loan.loanMonths;
   }
-  req.db.prepare('UPDATE accounts SET name = ?, closed = ?, apr = ?, loan_months = ? WHERE id = ?')
-    .run(name, closed, apr, loan_months, acct.id);
+  // A loan can name the category its payments are budgeted to, so the payment
+  // shows up in the budget instead of passing through as a bare transfer.
+  let paymentCategoryId = acct.payment_category_id;
+  if (req.body.paymentCategoryId !== undefined) {
+    if (req.body.paymentCategoryId == null || req.body.paymentCategoryId === '') {
+      paymentCategoryId = null;
+    } else {
+      if (acct.type !== 'loan') return bad(res, 'Only loan accounts budget their payments to a category');
+      const cat = req.db.prepare('SELECT id, linked_account_id FROM categories WHERE id = ?')
+        .get(req.body.paymentCategoryId);
+      if (!cat) return bad(res, 'Choose a category');
+      // a credit card's own payment category is driven by the card and would
+      // fight anything else pointed at it
+      if (cat.linked_account_id != null) return bad(res, 'Pick a category other than a credit card payment');
+      paymentCategoryId = cat.id;
+    }
+  }
+  req.db.prepare('UPDATE accounts SET name = ?, closed = ?, apr = ?, loan_months = ?, payment_category_id = ? WHERE id = ?')
+    .run(name, closed, apr, loan_months, paymentCategoryId, acct.id);
   req.db.prepare('UPDATE categories SET name = ? WHERE linked_account_id = ?').run(name, acct.id);
   res.json({ ok: true });
 });
@@ -305,6 +322,12 @@ app.delete('/api/categories/:id', (req, res) => {
   if (!cat) return res.status(404).json({ error: 'Category not found' });
   if (cat.linked_account_id != null) {
     return res.status(409).json({ error: 'This category is removed when you delete its credit card account' });
+  }
+  const linkedLoan = req.db.prepare('SELECT name FROM accounts WHERE payment_category_id = ?').get(cat.id);
+  if (linkedLoan) {
+    return res.status(409).json({
+      error: `${linkedLoan.name} budgets its payments to this category — point it somewhere else first`,
+    });
   }
   const used = req.db.prepare('SELECT COUNT(*) AS n FROM transactions WHERE category_id = ?').get(cat.id).n;
   if (used > 0) {
@@ -488,7 +511,9 @@ app.post('/api/loan-payment', (req, res) => {
   const split = splitLoanPayment(owed, loan.apr, amount);
   if (!split) return bad(res, "That payment doesn't cover this month's interest");
 
-  let category_id = null;
+  // an explicit category still wins; the link is the default so the common case
+  // needs no thought
+  let category_id = loan.payment_category_id ?? null;
   if (categoryId != null) {
     const cat = req.db.prepare('SELECT id FROM categories WHERE id = ?').get(categoryId);
     if (!cat) return bad(res, 'Choose a category');
