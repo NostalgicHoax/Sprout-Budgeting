@@ -527,7 +527,19 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .txn-grid.row.selected .sel-cell input,
 .txn-grid.row .sel-cell input:focus-visible { opacity: 1; }
 /* a loan payment isn't a plain transfer — it carries an interest split */
-.cat-tag.loan-tag { color: var(--soft); }
+/* Payments against debt — a card or a loan — are money moving between accounts
+   you own, not spending. Italics separate them from real purchases without
+   spending another colour: the register already uses colour for amounts,
+   warnings and income, and a fourth would compete rather than clarify. The tint
+   is deliberately faint; it groups the pair at a glance and disappears under
+   the row hover and selected states rather than fighting them. */
+.txn-grid.row.debt-row > div { font-style: italic; }
+/* :not(.selected) because the selected rule sits earlier in this file with the
+   same specificity — without it the tint would win and a selected debt row
+   would lose its highlight */
+.txn-grid.row.debt-row:not(.selected) { background: rgba(123, 129, 140, .05); }
+.txn-grid.row.debt-row:not(.selected):hover { background: var(--hover); }
+.cat-tag.debt-tag { color: var(--soft); font-style: italic; }
 .filter-bar {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px; border-bottom: 1px solid var(--row-border);

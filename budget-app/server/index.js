@@ -404,7 +404,7 @@ app.get('/api/transactions', (req, res) => {
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
   const rows = req.db.prepare(`
     SELECT t.*, a.name AS account_name, a.type AS account_type, c.name AS category_name, c.emoji AS category_emoji,
-           ta.name AS transfer_account_name
+           ta.name AS transfer_account_name, ta.type AS transfer_account_type
     FROM transactions t
     JOIN accounts a ON a.id = t.account_id
     LEFT JOIN categories c ON c.id = t.category_id

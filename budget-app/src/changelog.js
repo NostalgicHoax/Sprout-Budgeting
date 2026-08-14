@@ -14,6 +14,29 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.4',
+    date: '2026-07-30',
+    title: 'Debt payments stand out in the register',
+    items: [
+      {
+        heading: 'Card and loan payments look different now',
+        body: 'Paying a credit card or a loan moves money between accounts you '
+          + 'own rather than spending it, but both halves used to sit in the '
+          + 'register looking like any other line. They are now shown in italics '
+          + 'with a faint tint, so a payment and its matching entry read as a '
+          + 'pair and are easy to skip past when you are scanning what you '
+          + 'actually spent.',
+      },
+      {
+        heading: 'Card payments say so',
+        body: 'They were labelled "Transfer / Payment", the same as moving money '
+          + 'to savings. They now read Card Payment. Buying something with a '
+          + 'card is untouched — that is real spending, and it still looks like '
+          + 'it.',
+      },
+    ],
+  },
+  {
     version: '0.6.3',
     date: '2026-07-30',
     title: 'Bank imports find the payment you already entered',
