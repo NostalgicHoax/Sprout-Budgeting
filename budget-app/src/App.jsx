@@ -56,7 +56,7 @@ export default function App() {
   useEffect(() => {
     if (!activeBudgetId) return;
     api('/api/sync', { method: 'POST', body: { ifStaleHours: 6 } })
-      .then(r => { if (r.imported > 0 || r.updated > 0) refreshRef.current(); })
+      .then(r => { if (r.imported > 0 || r.updated > 0 || r.matched > 0) refreshRef.current(); })
       .catch(() => { /* offline or no connections — fine */ });
   }, [activeBudgetId]);
 

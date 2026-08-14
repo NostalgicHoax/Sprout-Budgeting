@@ -826,18 +826,19 @@ app.post('/api/sync', async (req, res) => {
     const cutoff = Date.now() - ifStaleHours * 3600 * 1000;
     conns = conns.filter(c => !c.last_sync_at || c.last_sync_at < cutoff);
   }
-  let imported = 0, updated = 0;
+  let imported = 0, updated = 0, matched = 0;
   const errors = [];
   for (const conn of conns) {
     try {
       const r = await syncConnection(req.db, conn);
       imported += r.imported;
       updated += r.updated;
+      matched += r.matched ?? 0;
     } catch (e) {
       errors.push({ connection: conn.name, error: e.message });
     }
   }
-  res.json({ synced: conns.length, imported, updated, errors });
+  res.json({ synced: conns.length, imported, updated, matched, errors });
 });
 
 app.get('/api/payees', (req, res) => {

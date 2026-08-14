@@ -7,6 +7,12 @@ import { ruleFor } from './payees.js';
 
 const FIRST_SYNC_DAYS = 60;   // history pulled when an account is first linked
 const RESYNC_OVERLAP_DAYS = 7; // re-fetch window so pending -> posted updates land
+// How far either side of the bank's date to look for a transaction the user
+// already entered. Feeds lag: the two halves of a payment can arrive a day or
+// more apart, and people record the payment by hand in the meantime. Wide
+// enough for a weekend plus posting delay, narrow enough that a payment repeated
+// monthly can't be mistaken for the previous one.
+const MATCH_WINDOW_DAYS = 5;
 
 /** Accepts a SimpleFIN setup token (base64 claim URL), a claim URL, or an
  *  already-claimed access URL, and returns the access URL. */
@@ -110,13 +116,37 @@ export async function syncConnection(db, connection, { accountId = null } = {}) 
   }
 
   const findExisting = db.prepare('SELECT id FROM transactions WHERE account_id = ? AND external_id = ?');
+  // A transaction the user entered themselves has no external id, so nothing
+  // links it to the bank's copy and the import used to land a duplicate beside
+  // it. Same account, same amount to the cent, nearest date wins. Rows that
+  // already carry an external id are excluded so one bank transaction can never
+  // steal another's match.
+  const findMatch = db.prepare(`
+    SELECT id FROM transactions
+    WHERE account_id = ? AND external_id IS NULL AND amount = ?
+      AND date >= ? AND date <= ?
+    ORDER BY ABS(julianday(date) - julianday(?)), id
+    LIMIT 1
+  `);
+  // Adopting keeps everything the user decided — category, memo, payee, and the
+  // other half of a transfer — and takes only the bank's identity and cleared
+  // state. The date comes from the bank because every later sync would set it
+  // anyway; leaving it alone here would just make the first sync differ.
+  const adopt = db.prepare(
+    'UPDATE transactions SET external_id = ?, cleared = ?, date = ? WHERE id = ?'
+  );
+  const shiftDay = (iso, days) => {
+    const d = new Date(`${iso}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+  };
   const update = db.prepare('UPDATE transactions SET date = ?, amount = ?, cleared = ? WHERE id = ?');
   const insert = db.prepare(`
     INSERT INTO transactions (account_id, date, payee, memo, amount, cleared, external_id, category_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
-  let imported = 0, updated = 0;
+  let imported = 0, updated = 0, matched = 0;
   for (const ext of data.accounts ?? []) {
     const acct = linked.find(a => a.external_id === ext.id);
     if (!acct) continue;
@@ -129,6 +159,16 @@ export async function syncConnection(db, connection, { accountId = null } = {}) 
       if (existing) {
         update.run(date, amount, cleared, existing.id);
         updated++;
+        continue;
+      }
+      const mine = findMatch.get(
+        acct.id, amount,
+        shiftDay(date, -MATCH_WINDOW_DAYS), shiftDay(date, MATCH_WINDOW_DAYS),
+        date
+      );
+      if (mine) {
+        adopt.run(String(t.id), cleared, date, mine.id);
+        matched++;
       } else {
         const payee = String(t.payee || t.description || '').trim().slice(0, 200);
         // an imported transaction lands in whatever category this payee was
@@ -142,5 +182,5 @@ export async function syncConnection(db, connection, { accountId = null } = {}) 
 
   db.prepare('UPDATE connections SET last_sync_at = ?, last_sync_status = ? WHERE id = ?')
     .run(Date.now(), 'ok', connection.id);
-  return { imported, updated, linked: linked.length };
+  return { imported, updated, matched, linked: linked.length };
 }

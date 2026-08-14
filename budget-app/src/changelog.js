@@ -14,6 +14,28 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.3',
+    date: '2026-07-30',
+    title: 'Bank imports find the payment you already entered',
+    items: [
+      {
+        heading: 'No more duplicates when you record a payment early',
+        body: 'Banks often report the two halves of a payment a day or more '
+          + 'apart. If you recorded it yourself in the meantime, the import used '
+          + 'to arrive as a second copy sitting next to yours. Now it recognises '
+          + 'the one you entered and takes it over instead.',
+      },
+      {
+        heading: 'What you typed is kept',
+        body: 'The matched transaction keeps its category, memo, payee and the '
+          + 'other half of its transfer. The import adds only the bank record of '
+          + 'it and whether it has cleared. Matching needs the same account, the '
+          + 'same amount to the cent, and a date within five days, so a payment '
+          + 'you make every month is never confused with the one before it.',
+      },
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-07-30',
     title: 'Loan payments can land in a category',
