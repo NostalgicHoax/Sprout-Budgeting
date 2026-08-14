@@ -19,19 +19,33 @@ export const CHANGELOG = [
     title: 'Loan payments can land in a category',
     items: [
       {
+        heading: 'Budget your loan payments — set it once',
+        body: 'Open ⚙ Loan Details on a loan and pick the category its payments '
+          + 'come out of, like your Car Payment category. That is the whole '
+          + 'setup, and you only do it once per loan.',
+      },
+      {
+        heading: 'Then recording one takes no extra thought',
+        body: 'In the register, choose Loan Payment where you would normally '
+          + 'choose a category, pick the loan, and enter what you paid. There is '
+          + 'no category to select — Sprout files it under the one you linked. '
+          + 'The account you paid from shows the payment against that category, '
+          + 'so it counts in your budget, while the loan itself drops by the '
+          + 'principal only.',
+      },
+      {
+        heading: 'Loans you have not linked are unchanged',
+        body: 'Leave a loan without a category and its payments stay out of the '
+          + 'budget entirely, exactly as before. Linking one later applies to '
+          + 'payments you record from then on — the ones already entered stay '
+          + 'where they are.',
+      },
+      {
         heading: 'Loan payments read as loan payments',
         body: 'In a loan account they were labelled "Transfer / Payment" like any '
           + 'other transfer, which hid both what they were and the fact that only '
           + 'part of each one comes off the balance. They now say Loan Payment, '
           + 'and hovering shows the split between principal and interest.',
-      },
-      {
-        heading: 'Budget your loan payments',
-        body: 'Open Loan Details on any loan and pick the category its payments '
-          + 'should come out of. From then on, recording a payment puts it in '
-          + 'that category automatically, so it shows up in the budget instead of '
-          + 'passing straight through. Leave it unset and payments behave as they '
-          + 'did before.',
       },
     ],
   },
