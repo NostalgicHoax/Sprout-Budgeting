@@ -14,6 +14,51 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.4',
+    date: '2026-07-30',
+    title: 'Debt payments stand out in the register',
+    items: [
+      {
+        heading: 'Card and loan payments look different now',
+        body: 'Paying a credit card or a loan moves money between accounts you '
+          + 'own rather than spending it, but both halves used to sit in the '
+          + 'register looking like any other line. They are now shown in italics '
+          + 'with a faint tint, so a payment and its matching entry read as a '
+          + 'pair and are easy to skip past when you are scanning what you '
+          + 'actually spent.',
+      },
+      {
+        heading: 'Card payments say so',
+        body: 'They were labelled "Transfer / Payment", the same as moving money '
+          + 'to savings. They now read Card Payment. Buying something with a '
+          + 'card is untouched — that is real spending, and it still looks like '
+          + 'it.',
+      },
+    ],
+  },
+  {
+    version: '0.6.3',
+    date: '2026-07-30',
+    title: 'Bank imports find the payment you already entered',
+    items: [
+      {
+        heading: 'No more duplicates when you record a payment early',
+        body: 'Banks often report the two halves of a payment a day or more '
+          + 'apart. If you recorded it yourself in the meantime, the import used '
+          + 'to arrive as a second copy sitting next to yours. Now it recognises '
+          + 'the one you entered and takes it over instead.',
+      },
+      {
+        heading: 'What you typed is kept',
+        body: 'The matched transaction keeps its category, memo, payee and the '
+          + 'other half of its transfer. The import adds only the bank record of '
+          + 'it and whether it has cleared. Matching needs the same account, the '
+          + 'same amount to the cent, and a date within five days, so a payment '
+          + 'you make every month is never confused with the one before it.',
+      },
+    ],
+  },
+  {
     version: '0.6.2',
     date: '2026-07-30',
     title: 'Loan payments can land in a category',

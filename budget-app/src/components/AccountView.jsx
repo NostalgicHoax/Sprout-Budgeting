@@ -23,6 +23,21 @@ function haystack(t) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
+/** A payment against debt — a loan or a credit card — rather than spending.
+ *
+ *  These come in pairs and move money between accounts you own, so mixing them
+ *  in with ordinary purchases makes a register harder to read than it needs to
+ *  be. Both halves count, which is why the counterpart's account type matters:
+ *  the checking side of a card payment looks like any other transfer until you
+ *  notice what sits on the other end.
+ *
+ *  A purchase made on a card is not one of these — it is real spending that
+ *  happens to be on credit, and it is not a transfer. */
+const isDebtPayment = t =>
+  t.interest != null
+  || t.transfer_account_type === 'loan'
+  || (!!t.is_transfer && (t.account_type === 'credit' || t.transfer_account_type === 'credit'));
+
 /** A transaction with no category, ignoring the kinds that never have one. */
 const isUncategorized = t =>
   t.category_id == null && !t.is_income && !t.is_transfer && !t.is_starting;
@@ -488,12 +503,15 @@ function categoryLabel(t) {
   if (t.interest != null) {
     return (
       <span
-        className="cat-tag loan-tag"
+        className="cat-tag debt-tag"
         title={`${fmt(t.amount)} paid — ${fmt(t.amount - t.interest)} off the balance, ${fmt(t.interest)} interest`}
       >
         🏦 Loan Payment
       </span>
     );
+  }
+  if (t.is_transfer && (t.account_type === 'credit' || t.transfer_account_type === 'credit')) {
+    return <span className="cat-tag debt-tag">💳 Card Payment</span>;
   }
   if (t.is_transfer) return <span className="cat-tag muted">🔁 Transfer / Payment</span>;
   if (t.is_starting) return <span className="cat-tag muted">Starting Balance</span>;
@@ -504,7 +522,7 @@ function categoryLabel(t) {
 function TxnRow({ txn: t, showAccount, selected, onToggle, onEdit }) {
   return (
     <div
-      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''} ${selected ? 'selected' : ''}`}
+      className={`grid-row txn-grid row ${showAccount ? 'with-account' : ''} ${!t.cleared ? 'pending-txn' : ''} ${isDebtPayment(t) ? 'debt-row' : ''} ${selected ? 'selected' : ''}`}
       title={!t.cleared ? 'Pending — double-click to edit' : 'Double-click to edit'}
       onDoubleClick={onEdit}
     >
