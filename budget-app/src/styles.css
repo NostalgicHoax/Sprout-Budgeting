@@ -526,6 +526,8 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .txn-grid.row:hover .sel-cell input,
 .txn-grid.row.selected .sel-cell input,
 .txn-grid.row .sel-cell input:focus-visible { opacity: 1; }
+/* a loan payment isn't a plain transfer — it carries an interest split */
+.cat-tag.loan-tag { color: var(--soft); }
 .filter-bar {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 14px; border-bottom: 1px solid var(--row-border);

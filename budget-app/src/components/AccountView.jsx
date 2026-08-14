@@ -17,7 +17,7 @@ function haystack(t) {
     abs.toFixed(2),
     abs.toLocaleString('en-US', { minimumFractionDigits: 2 }),
     t.is_income ? 'income inflow' : '',
-    t.is_transfer ? 'transfer' : '',
+    t.interest != null ? 'loan payment interest' : t.is_transfer ? 'transfer' : '',
     t.category_id == null && !t.is_income && !t.is_transfer && !t.is_starting ? 'uncategorized' : '',
     t.cleared ? '' : 'pending',
   ].filter(Boolean).join(' ').toLowerCase();
@@ -481,6 +481,20 @@ function DeleteAccount({ account, onClose, onDone }) {
 
 function categoryLabel(t) {
   if (t.is_income) return <span className="cat-tag income">💵 Ready to Assign</span>;
+  // The loan side of a loan payment is stored as a transfer so it pairs with the
+  // paying account, but calling it one hides what it is — and hides that only
+  // part of it came off the balance. `interest` is set on that row and nowhere
+  // else, so it identifies the payment.
+  if (t.interest != null) {
+    return (
+      <span
+        className="cat-tag loan-tag"
+        title={`${fmt(t.amount)} paid — ${fmt(t.amount - t.interest)} off the balance, ${fmt(t.interest)} interest`}
+      >
+        🏦 Loan Payment
+      </span>
+    );
+  }
   if (t.is_transfer) return <span className="cat-tag muted">🔁 Transfer / Payment</span>;
   if (t.is_starting) return <span className="cat-tag muted">Starting Balance</span>;
   if (t.category_id == null) return <span className="cat-tag warn">Uncategorized</span>;
@@ -509,9 +523,11 @@ function TxnRow({ txn: t, showAccount, selected, onToggle, onEdit }) {
       {showAccount && <div className="soft">{t.account_name}</div>}
       <div className="soft">
         {t.is_recurring ? '🔁 ' : ''}
-        {t.is_transfer
-          ? `⇄ ${t.amount < 0 ? 'To' : 'From'}: ${t.transfer_account_name || t.payee || '—'}`
-          : t.payee}
+        {t.interest != null
+          ? `Payment from ${t.transfer_account_name || '—'}`
+          : t.is_transfer
+            ? `⇄ ${t.amount < 0 ? 'To' : 'From'}: ${t.transfer_account_name || t.payee || '—'}`
+            : t.payee}
       </div>
       <div>{categoryLabel(t)}</div>
       <div className="muted ellipsis">{t.memo}</div>

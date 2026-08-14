@@ -19,6 +19,13 @@ export const CHANGELOG = [
     title: 'Loan payments can land in a category',
     items: [
       {
+        heading: 'Loan payments read as loan payments',
+        body: 'In a loan account they were labelled "Transfer / Payment" like any '
+          + 'other transfer, which hid both what they were and the fact that only '
+          + 'part of each one comes off the balance. They now say Loan Payment, '
+          + 'and hovering shows the split between principal and interest.',
+      },
+      {
         heading: 'Budget your loan payments',
         body: 'Open Loan Details on any loan and pick the category its payments '
           + 'should come out of. From then on, recording a payment puts it in '
