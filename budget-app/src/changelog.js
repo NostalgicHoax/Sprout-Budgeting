@@ -26,6 +26,12 @@ export const CHANGELOG = [
           + 'category opens its details straight away.',
       },
       {
+        heading: 'Goal progress is readable again',
+        body: 'On the budget, a goal shared a line with the category name and got '
+          + 'cut off — "Goal met — $55…" told you nothing. It now sits on its own '
+          + 'line under the name, in full.',
+      },
+      {
         heading: 'Transactions read as a list, not a table',
         body: 'Seven columns will not fit on a phone, so each transaction becomes '
           + 'two lines instead: who it was and what it cost, with the date and '
