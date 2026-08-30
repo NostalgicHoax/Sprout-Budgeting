@@ -3,9 +3,24 @@ import { fmt, fmtDate, monthLabel, monthName, parseAmount } from '../money.js';
 import { api } from '../api.js';
 import ConfirmButton from './ConfirmButton.jsx';
 import ResizeHandle from './ResizeHandle.jsx';
+import useNarrow from '../useNarrow.js';
 
 export default function RightPanel({ state, month, refresh, selectedCat, onCloseInspector, setView }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('rightPanelCollapsed') === '1');
+  // On a phone this pane is a drawer. The rail is a desktop compromise — 44px
+  // of a 390px screen for a vertical word — so it is set aside and this governs.
+  const narrow = useNarrow();
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (!narrow) setOpen(false); }, [narrow]);
+  // picking a category is a request to see its details, so the drawer follows
+  useEffect(() => { if (narrow && selectedCat) setOpen(true); }, [narrow, selectedCat?.id]);
+  // The pane renders from three different places depending on what is showing,
+  // so its open state is published on the root element rather than threaded
+  // through all three — the same trick the pane widths already use.
+  useEffect(() => {
+    document.documentElement.dataset.rightOpen = narrow && open ? '1' : '0';
+    return () => { delete document.documentElement.dataset.rightOpen; };
+  }, [narrow, open]);
   const [width, setWidth] = useState(() => Number(localStorage.getItem('rightPanelWidth')) || 340);
   const pull = useRef(0);
 
@@ -48,14 +63,17 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     if (selectedCat) setCollapsed(false);
   }, [selectedCat?.id]);
 
+  // As in the sidebar: on a phone this pane is a drawer over the whole screen,
+  // so its collapse button closes it rather than railing it.
   function toggle() {
+    if (narrow) { setOpen(false); return; }
     setCollapsed(c => {
       localStorage.setItem('rightPanelCollapsed', c ? '0' : '1');
       return !c;
     });
   }
 
-  if (collapsed) {
+  if (collapsed && !narrow) {
     return (
       <aside className="right-panel collapsed" onClick={toggle} title="Expand panel">
         {handle}
@@ -67,7 +85,7 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     );
   }
 
-  return selectedCat ? (
+  const panel = selectedCat ? (
     <CategoryInspector
       key={selectedCat.id}
       cat={selectedCat}
@@ -76,15 +94,27 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
       refresh={refresh}
       onClose={onCloseInspector}
       onCollapse={toggle}
+      collapseTitle={narrow ? 'Close' : 'Collapse panel'}
       setView={setView}
       handle={handle}
     />
   ) : (
-    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} handle={handle} />
+    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} collapseTitle={narrow ? 'Close' : 'Collapse panel'} handle={handle} />
+  );
+
+  if (!narrow) return panel;
+  return (
+    <>
+      {!open && (
+        <button className="pane-toggle summary" title="Show summary" onClick={() => setOpen(true)}>‹</button>
+      )}
+      {open && <div className="pane-scrim" onClick={() => setOpen(false)} />}
+      {panel}
+    </>
   );
 }
 
-function SummaryPanel({ state, month, refresh, onCollapse, handle }) {
+function SummaryPanel({ state, month, refresh, onCollapse, collapseTitle, handle }) {
   const { summary } = state;
   const allCats = state.groups.flatMap(g => g.categories);
   const overspentTotal = allCats.reduce((s, c) => s + Math.min(c.available, 0), 0);
@@ -99,7 +129,7 @@ function SummaryPanel({ state, month, refresh, onCollapse, handle }) {
       {handle}
       <div className="panel-head">
         <div className="panel-title">{monthName(month)}'s Summary</div>
-        <button className="panel-toggle" title="Collapse panel" onClick={onCollapse}>»</button>
+        <button className="panel-toggle" title={collapseTitle} onClick={onCollapse}>»</button>
       </div>
       <section className="insp-section">
         <div className="stat-block">
@@ -171,7 +201,7 @@ function periodNoun(period, every, unit) {
   }
 }
 
-function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setView, handle }) {
+function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, collapseTitle, setView, handle }) {
   const [details, setDetails] = useState(null);
   const [goalInput, setGoalInput] = useState('');
   const [period, setPeriod] = useState('monthly');
@@ -284,7 +314,7 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
         </div>
         <span className="panel-head-actions">
           <button className="panel-toggle" title="Back to summary" onClick={onClose}>✕</button>
-          <button className="panel-toggle" title="Collapse panel" onClick={onCollapse}>»</button>
+          <button className="panel-toggle" title={collapseTitle} onClick={onCollapse}>»</button>
         </span>
       </div>
 

@@ -14,6 +14,61 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.7.0',
+    date: '2026-08-30',
+    title: 'Sprout works on a phone',
+    items: [
+      {
+        heading: 'A layout that fits a small screen',
+        body: 'Open Sprout on your phone and the two side panels step out of the '
+          + 'way, becoming drawers you pull in when you want them — the menu from '
+          + 'a button top left, the month summary from one top right. Tapping a '
+          + 'category opens its details straight away, and the button that '
+          + 'collapses a panel on a computer closes the drawer here. Scrollbars '
+          + 'are gone, since a touch screen scrolls by dragging, and the space '
+          + 'goes to what you are reading.',
+      },
+      {
+        heading: 'Goal progress is readable again',
+        body: 'On the budget, a goal shared a line with the category name and got '
+          + 'cut off — "Goal met — $55…" told you nothing. It now sits on its own '
+          + 'line under the name, in full.',
+      },
+      {
+        heading: 'Transactions read as a list, not a table',
+        body: 'Seven columns will not fit on a phone, so each transaction becomes '
+          + 'two lines instead: who it was and what it cost, with the date and '
+          + 'category underneath. The budget shows each category and what is left '
+          + 'of it. Selecting several at once is a mouse job and steps aside '
+          + 'here; a transaction you open can still be deleted from its editor.',
+      },
+      {
+        heading: 'The calendar runs down the page',
+        body: 'Seven columns of a phone screen left about fifty pixels a day, '
+          + 'which was not enough for a date and an amount. A month is now a list '
+          + 'of days, the 1st at the top, scrolling to the last. Everything the '
+          + 'grid did still works — Transactions and Spending, the Cleared and '
+          + 'Recurring filters, tapping a day to open it — and two things come '
+          + 'back that would not fit before: each entry shows who it was paid to, '
+          + 'and a day is shown in full rather than stopping at three with a '
+          + '"+4 more".',
+      },
+      {
+        heading: 'Adding a transaction fits the screen',
+        body: 'The editor used to keep its desktop row of columns and run off the '
+          + 'side of a phone, taking the register with it. It now stacks: one '
+          + 'field a line, with outflow and inflow side by side at the bottom and '
+          + 'each of them labelled, since the column headings that used to tell '
+          + 'them apart are not there.',
+      },
+      {
+        heading: 'Nothing changes on a computer',
+        body: 'The full three-column layout, the draggable panel edges and '
+          + 'everything else are exactly as they were on a larger screen.',
+      },
+    ],
+  },
+  {
     version: '0.6.5',
     date: '2026-08-30',
     title: 'A spending view on the calendar',

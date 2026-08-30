@@ -285,7 +285,7 @@ function CategoryRow({ cat, month, refresh, setView, allGroups, accounts, isPaym
       status = `Overspent ${fmt(spent)} of ${fmt(funds)}`;
     } else if (cat.goal > 0) {
       status = cat.funded >= cat.goal
-        ? `🎯 Goal met — ${fmt(cat.goal)}`
+        ? `Goal met — ${fmt(cat.goal)}`
         : `${fmt(cat.available)} of ${fmt(cat.goal)} goal`;
     } else if (spent > 0) {
       status = `Spent ${fmt(spent)} of ${fmt(funds)}`;

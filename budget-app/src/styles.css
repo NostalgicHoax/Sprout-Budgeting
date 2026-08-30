@@ -73,6 +73,25 @@ button { font-family: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted2); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* …except where there is nothing to grab them with. A touch screen scrolls by
+ * dragging the content itself, so a bar is a strip of a 390px screen showing
+ * nothing, and the gutter the register reserves to keep its columns lined up
+ * has no scrollbar left to line up with.
+ *
+ * Both conditions on purpose: the width catches a phone-sized window being
+ * used to check the layout, and the coarse pointer catches a real touch device
+ * that is wider than that — a phone turned sideways, or a tablet.
+ *
+ * :root, not *, because the base rule above is on :root and would otherwise win
+ * on specificity whatever the order. scrollbar-color goes back to auto so that
+ * Chromium stops ignoring the ::-webkit- rule, which is what older WebKit has
+ * instead of scrollbar-width. */
+@media (max-width: 560px), (pointer: coarse) {
+  :root { scrollbar-width: none; scrollbar-color: auto; }
+  ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .col-head, .table-body { scrollbar-gutter: auto; }
+}
+
 input, select {
   font-family: inherit;
   font-size: 13px;
@@ -1187,3 +1206,296 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
 .passkey-row .icon-btn { visibility: visible; }
 .modal-error { margin: 0; font-size: 12px; color: var(--red); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+/* ============================================================================
+   Narrow screens
+   ----------------------------------------------------------------------------
+   The register alone asks for 474px and the two side panes take another 580, so
+   below roughly 860px there is no arrangement in which all three fit. Rather
+   than squeeze everything, the panes leave the flow and become drawers over the
+   content. Keep this breakpoint in step with NARROW_PX in src/useNarrow.js,
+   which the components read to change behaviour rather than only appearance.
+   ========================================================================== */
+@media (max-width: 860px) {
+  /* ---- the two panes become drawers ---- */
+  .sidebar.as-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 210;
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+  }
+  .sidebar.as-drawer.nav-open { transform: none; }
+
+  .right-panel {
+    position: fixed; top: 0; bottom: 0; right: 0; z-index: 210;
+    width: min(88vw, 360px);
+    transform: translateX(100%);
+    transition: transform .2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+  }
+  :root[data-right-open="1"] .right-panel { transform: none; }
+
+  /* dragging the edge of a drawer means nothing — it is not holding a column
+     open against anything */
+  .sidebar.as-drawer .resize-handle,
+  .right-panel .resize-handle { display: none; }
+
+  .pane-scrim {
+    position: fixed; inset: 0; z-index: 205;
+    background: rgba(0, 0, 0, .55);
+  }
+  /* the two ways back to a closed drawer, parked in opposite top corners so
+     they never sit under the buttons a view puts in its own header */
+  .pane-toggle {
+    position: fixed; top: 10px; z-index: 200;
+    width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border2); background: var(--panel);
+    color: var(--soft); font-size: 16px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pane-toggle:hover { background: var(--hover); color: var(--bright); }
+  .pane-toggle.nav { left: 10px; }
+  .pane-toggle.summary { right: 10px; }
+
+  /* headers keep clear of those two buttons, and are allowed to wrap rather
+     than push their contents off the side */
+  .topbar { padding: 8px 56px; gap: 10px; flex-wrap: wrap; min-height: 0; }
+  .account-topbar { padding-right: 12px; }
+  .month-label { font-size: 15px; min-width: 0; }
+  /* The month and the Ready to Assign box each take a line of their own and
+     centre on it. The two pane buttons are fixed to the corners and out of the
+     flow, and the header's side padding matches on both sides to clear them —
+     so centring within the content box centres on the screen. */
+  .month-nav { flex: 1 1 100%; justify-content: center; }
+  .rta-wrap { flex: 1 1 100%; justify-content: center; }
+  .account-title { font-size: 16px; }
+  .filter-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .filter-tabs::-webkit-scrollbar { height: 0; }
+
+  /* every dialog was sized for a desktop window */
+  .modal, .popover, .day-popover, .connections-modal,
+  .security-modal, .changelog-modal, .delete-modal {
+    width: auto; max-width: calc(100vw - 20px);
+  }
+  .budget-menu { left: 8px; right: 8px; }
+}
+
+/* ---- phone ---- */
+@media (max-width: 560px) {
+  /* The register stops being a table. Seven columns cannot survive 390px, so
+     each row becomes two lines: what it was and what it cost on top, when and
+     which category underneath. Grid areas do this without the component
+     knowing, because the cells are already in a fixed DOM order. */
+  .txn-grid.row:not(.editor):not(.with-account),
+  .txn-grid.col-head {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "payee amount"
+      "date  category";
+    row-gap: 2px; padding-top: 9px; padding-bottom: 9px;
+  }
+  .txn-grid.col-head { display: none; }  /* headings for columns that no longer exist */
+  /* The tick box only ever appeared on hover, which a touch screen does not
+     have — so on a phone it showed up on whichever row was last tapped and
+     nowhere else. Multi-select goes with it; one transaction at a time is
+     deleted from the editor, which is the reachable way to do it here. */
+  .txn-grid .sel-cell { display: none; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(2) { grid-area: date; font-size: 11px; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(3) { grid-area: payee; font-weight: 600; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(4) { grid-area: category; }
+  /* memo has nowhere to go on two lines; it stays in the row's tooltip and the
+     day view rather than truncating to nothing */
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(5) { display: none; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(6),
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(7) { grid-area: amount; text-align: right; }
+  /* the two amount cells share one area, and exactly one of them is ever
+     filled, so the empty one must not paint over the other */
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(6):empty,
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(7):empty { display: none; }
+
+  /* The editor used to keep its desktop shape and scroll sideways, on the
+     theory that a form which reflows while you fill it in is worse than one
+     you scroll. On a 390px screen that theory does not survive contact: seven
+     columns at a 640px floor put most of the form off the side of the phone,
+     and dragged the whole register into a horizontal scroll with it, since the
+     rows share a width with the widest thing in the body. So it stacks.
+     Nothing else here needs to scroll sideways any more. */
+  .table-scroll { overflow-x: hidden; }
+  .table-scroll > .col-head,
+  .table-scroll > .table-body { min-width: 0; }
+  .txn-grid.row.editor {
+    min-width: 0;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 12px 10px;
+  }
+  .txn-grid.row.editor > div { grid-column: 1 / -1; }
+  /* Outflow and inflow are the last two fields, and they pair on one line.
+     A desktop tells them apart by the column headings above them — headings
+     this layout has thrown away, so each says what it is. */
+  .txn-grid.row.editor > div:nth-last-child(1),
+  .txn-grid.row.editor > div:nth-last-child(2) {
+    grid-column: span 1;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .txn-grid.row.editor > div:nth-last-child(2)::before { content: 'Outflow'; }
+  .txn-grid.row.editor > div:nth-last-child(1)::before { content: 'Inflow'; }
+  .txn-grid.row.editor > div:nth-last-child(1)::before,
+  .txn-grid.row.editor > div:nth-last-child(2)::before {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  /* a thumb needs more than a mouse does */
+  .txn-grid.row.editor select,
+  .txn-grid.row.editor input { padding: 9px 10px; font-size: 15px; }
+  /* wrap rather than push Save off the side */
+  .editor-options { flex-wrap: wrap; gap: 10px 16px; padding: 8px 12px 12px; }
+
+  /* All Accounts and category views carry an extra Account cell, so every
+     position after the date shifts by one. Same two lines, four columns. */
+  .txn-grid.row.with-account:not(.editor) {
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "payee   payee    amount"
+      "date    account  category";
+  }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(3) { grid-area: account; font-size: 11px; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(4) { grid-area: payee; font-weight: 600; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(5) { grid-area: category; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(6) { display: none; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(7),
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(8) { grid-area: amount; text-align: right; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(7):empty,
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(8):empty { display: none; }
+
+  /* Budget: the category and what is left of it. Assigned and Activity are one
+     tap away in the drawer, and neither is what you scan a phone for.
+     :not(.txn-grid) because a register row is also a .grid-row.row and would
+     otherwise be re-columned by these rules after the block above. */
+  .grid-row.col-head:not(.txn-grid),
+  .grid-row.row:not(.txn-grid),
+  .grid-row.group-head:not(.txn-grid) {
+    grid-template-columns: 1fr 96px;
+  }
+  .grid-row.col-head:not(.txn-grid) > div:nth-child(2),
+  .grid-row.col-head:not(.txn-grid) > div:nth-child(3),
+  .grid-row.row:not(.txn-grid) > div:nth-child(2),
+  .grid-row.row:not(.txn-grid) > div:nth-child(3),
+  .grid-row.group-head:not(.txn-grid) > div:nth-child(2),
+  .grid-row.group-head:not(.txn-grid) > div:nth-child(3) { display: none; }
+
+  /* The goal status shared a line with the category name and lost to it —
+     "Goal met — $55…" and "Overspent $113.28 of $95…" tell you nothing. It now
+     wraps onto its own line under the name and in line with the funding bar
+     beneath it, and is allowed to wrap rather than truncate.
+
+     One rule, not two: an earlier pass indented the status by hand and a later
+     one moved that indent onto the line that holds it, leaving both on the
+     books. They disagreed, and which won came down to file order. */
+  .cat-cell.indent .cat-line { flex-wrap: wrap; row-gap: 0; }
+  .cat-cell.indent .cat-status {
+    flex: 1 0 100%;
+    margin: var(--cat-stack-gap) 0 0;
+    text-align: left;
+    white-space: normal;
+    overflow: visible;
+    line-height: 1.35;
+  }
+
+  /* Room to breathe.
+     A budget row was sized by a 52px minimum with its vertical padding zeroed,
+     which worked while everything sat on one line and the minimum did the
+     centring. Now that the goal status and the funding bar stack under the
+     name, the content outgrows that minimum and there is no padding left to
+     stop it touching the row's edges. So: real padding, and let the height
+     follow the content. */
+  .grid-row.row:not(.txn-grid),
+  .grid-row.group-head:not(.txn-grid) {
+    min-height: 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    align-items: start;
+  }
+  .grid-row:not(.txn-grid) { padding-left: 12px; padding-right: 12px; column-gap: 10px; }
+  /* the group heading has nothing stacked under it, so it keeps sitting on the
+     vertical centre of its own row */
+  .grid-row.group-head:not(.txn-grid) { align-items: center; }
+  /* a narrower step in, now that the row itself has a left pad and the screen
+     has none to spare */
+  .cat-cell.indent {
+    padding-left: 12px;
+    position: relative;
+    /* the name, the status and the bar step in by one figure and are
+       spaced by another, so the stack reads as one column */
+    --cat-stack-indent: 28px;
+    --cat-stack-gap: 6px;
+  }
+  /* The emoji stops being a character on the first line and becomes the marker
+     for the whole cell, so it sits on the centre of the name, status and bar
+     together rather than riding along with the name. It leaves the flow, so
+     the three of them are pulled clear of it by a matching margin — one
+     figure, so they stay in a single column with each other. */
+  .cat-cell.indent .cat-emoji {
+    position: absolute; left: 12px; top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px; line-height: 1;
+  }
+  .cat-cell.indent .cat-line { margin-left: var(--cat-stack-indent); }
+  /* the funding bar is .fbar-track — .bar-track is the goal progress bar in the
+     inspector, a different element that happens to read alike */
+  .cat-cell.indent .fbar-track {
+    margin: var(--cat-stack-gap) 0 0 var(--cat-stack-indent);
+    height: 7px;
+  }
+  /* the available pill takes the row's vertical centre, opposite the emoji,
+     rather than being pinned to the top of a cell that is now three lines tall */
+  .grid-row.row:not(.txn-grid) > div:nth-child(4) { align-self: center; }
+
+  /* The calendar runs down the page instead of across it. The grid is not
+     rendered at all at this width, so none of the rules that squeezed it are
+     here any more — the chips get their payees back, and the spending view
+     gets its in/out split back, because a full-width row has room for both. */
+  .calendar-wrap { padding: 0 0 20px; }
+  .cal-day-row {
+    display: grid; grid-template-columns: 46px 1fr;
+    gap: 10px; align-items: start;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--row-border);
+    cursor: pointer;
+  }
+  .cal-day-row:hover { background: #16181d; }
+  /* the date reads as a column of its own down the left, the way a day marker
+     does on a grid — weekday above, and the number in the circle that marks
+     today on the grid as well */
+  .cal-day-mark {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    line-height: 1;
+  }
+  .cal-dow {
+    font-size: 9px; font-weight: 700; letter-spacing: .07em; color: var(--muted2);
+  }
+  .cal-dnum {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 26px; border-radius: 50%;
+    font-size: 15px; font-weight: 700; color: var(--soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-day-row.today .cal-dnum { background: var(--accent); color: var(--accent-dark); }
+  .cal-day-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .cal-day-body .cal-chip { font-size: 12px; padding: 4px 9px; gap: 10px; }
+  .cal-day-body .chip-payee { flex: 1; }
+  /* a day with nothing on it is a thin line, not an empty box */
+  .cal-day-body .cal-flow { flex: none; align-items: flex-start; }
+  .cal-day-body .cal-flow.quiet { font-size: 12px; }
+  .cal-day-body .cal-flow-split { gap: 12px; justify-content: flex-start; }
+
+  /* the toggles wrap onto a second line rather than scrolling out of reach —
+     "🔁 Recurring" was falling off the right of the screen */
+  .filter-tabs { flex-wrap: wrap; overflow-x: visible; padding: 10px 12px; }
+  .cal-tab-gap { display: none; }
+  .cal-legend { margin-left: 0; }
+
+  .flow-table { font-size: 12px; }
+  .flow-table th, .flow-table td { padding: 6px 4px; }
+}
