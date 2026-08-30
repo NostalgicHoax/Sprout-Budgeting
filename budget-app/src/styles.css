@@ -1369,6 +1369,9 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
     font-size: 16px; line-height: 1;
   }
   .cat-cell.indent .cat-line { margin-left: 28px; }
+  /* the funding bar is .fbar-track — .bar-track is the goal progress bar in the
+     inspector, a different element that happens to read alike */
+  .cat-cell.indent .fbar-track { margin: 9px 0 0 28px; height: 7px; }
   .cat-cell.indent .bar-track { margin: 10px 0 0 28px; }
   /* the status no longer indents itself — the line it sits in already does */
   .cat-cell.indent .cat-status { margin-top: 2px; margin-left: 0; line-height: 1.35; }
