@@ -1270,14 +1270,18 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
      knowing, because the cells are already in a fixed DOM order. */
   .txn-grid.row:not(.editor):not(.with-account),
   .txn-grid.col-head {
-    grid-template-columns: 26px 1fr auto;
+    grid-template-columns: 1fr auto;
     grid-template-areas:
-      "sel payee amount"
-      "sel date  category";
+      "payee amount"
+      "date  category";
     row-gap: 2px; padding-top: 9px; padding-bottom: 9px;
   }
   .txn-grid.col-head { display: none; }  /* headings for columns that no longer exist */
-  .txn-grid.row:not(.editor) > div:nth-child(1) { grid-area: sel; }
+  /* The tick box only ever appeared on hover, which a touch screen does not
+     have — so on a phone it showed up on whichever row was last tapped and
+     nowhere else. Multi-select goes with it; one transaction at a time is
+     deleted from the editor, which is the reachable way to do it here. */
+  .txn-grid .sel-cell { display: none; }
   .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(2) { grid-area: date; font-size: 11px; }
   .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(3) { grid-area: payee; font-weight: 600; }
   .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(4) { grid-area: category; }
@@ -1291,18 +1295,51 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
   .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(6):empty,
   .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(7):empty { display: none; }
 
-  /* the editor keeps its own shape and simply scrolls sideways — a form that
-     reflows while you are filling it in is worse than one you scroll */
-  .table-scroll { overflow-x: auto; }
-  .txn-grid.editor { min-width: 640px; }
+  /* The editor used to keep its desktop shape and scroll sideways, on the
+     theory that a form which reflows while you fill it in is worse than one
+     you scroll. On a 390px screen that theory does not survive contact: seven
+     columns at a 640px floor put most of the form off the side of the phone,
+     and dragged the whole register into a horizontal scroll with it, since the
+     rows share a width with the widest thing in the body. So it stacks.
+     Nothing else here needs to scroll sideways any more. */
+  .table-scroll { overflow-x: hidden; }
+  .table-scroll > .col-head,
+  .table-scroll > .table-body { min-width: 0; }
+  .txn-grid.row.editor {
+    min-width: 0;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    padding: 12px 12px 10px;
+  }
+  .txn-grid.row.editor > div { grid-column: 1 / -1; }
+  /* Outflow and inflow are the last two fields, and they pair on one line.
+     A desktop tells them apart by the column headings above them — headings
+     this layout has thrown away, so each says what it is. */
+  .txn-grid.row.editor > div:nth-last-child(1),
+  .txn-grid.row.editor > div:nth-last-child(2) {
+    grid-column: span 1;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .txn-grid.row.editor > div:nth-last-child(2)::before { content: 'Outflow'; }
+  .txn-grid.row.editor > div:nth-last-child(1)::before { content: 'Inflow'; }
+  .txn-grid.row.editor > div:nth-last-child(1)::before,
+  .txn-grid.row.editor > div:nth-last-child(2)::before {
+    font-size: 10px; font-weight: 700; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--muted);
+  }
+  /* a thumb needs more than a mouse does */
+  .txn-grid.row.editor select,
+  .txn-grid.row.editor input { padding: 9px 10px; font-size: 15px; }
+  /* wrap rather than push Save off the side */
+  .editor-options { flex-wrap: wrap; gap: 10px 16px; padding: 8px 12px 12px; }
 
   /* All Accounts and category views carry an extra Account cell, so every
      position after the date shifts by one. Same two lines, four columns. */
   .txn-grid.row.with-account:not(.editor) {
-    grid-template-columns: 26px auto 1fr auto;
+    grid-template-columns: auto 1fr auto;
     grid-template-areas:
-      "sel payee   payee    amount"
-      "sel date    account  category";
+      "payee   payee    amount"
+      "date    account  category";
   }
   .txn-grid.row.with-account:not(.editor) > div:nth-child(3) { grid-area: account; font-size: 11px; }
   .txn-grid.row.with-account:not(.editor) > div:nth-child(4) { grid-area: payee; font-weight: 600; }
