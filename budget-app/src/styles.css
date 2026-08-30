@@ -1337,6 +1337,33 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
     overflow: visible;
   }
 
+  /* Room to breathe.
+     A budget row was sized by a 52px minimum with its vertical padding zeroed,
+     which worked while everything sat on one line and the minimum did the
+     centring. Now that the goal status and the funding bar stack under the
+     name, the content outgrows that minimum and there is no padding left to
+     stop it touching the row's edges. So: real padding, and let the height
+     follow the content. */
+  .grid-row.row:not(.txn-grid),
+  .grid-row.group-head:not(.txn-grid) {
+    min-height: 0;
+    padding-top: 12px;
+    padding-bottom: 12px;
+    align-items: start;
+  }
+  .grid-row:not(.txn-grid) { padding-left: 12px; padding-right: 12px; column-gap: 10px; }
+  /* the group heading has nothing stacked under it, so it keeps sitting on the
+     vertical centre of its own row */
+  .grid-row.group-head:not(.txn-grid) { align-items: center; }
+  /* a narrower step in, now that the row itself has a left pad and the screen
+     has none to spare */
+  .cat-cell.indent { padding-left: 12px; }
+  .cat-cell.indent .cat-status { margin-top: 2px; line-height: 1.35; }
+  .bar-track { margin-top: 10px; }
+  /* keep the available pill off the right edge and on the first line, level
+     with the category name rather than floating against a taller cell */
+  .grid-row.row:not(.txn-grid) > div:nth-child(4) { padding-top: 1px; }
+
   /* calendar cells shrink to the day and its chips' amounts */
   .calendar-grid { grid-auto-rows: minmax(76px, auto); }
   .cal-cell { padding: 4px 3px; gap: 2px; }
