@@ -39,6 +39,40 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: inherit; }
+
+/* Scrollbars, in the app's own colours.
+ *
+ * color-scheme: dark above already avoids a white scrollbar, but what it gives
+ * is the browser's grey — next to these borders it reads as a piece of someone
+ * else's interface.
+ *
+ * Two mechanisms deliberately. Firefox and Chromium 121+ honour the standard
+ * scrollbar-color / scrollbar-width, and when scrollbar-color is set Chromium
+ * ignores the ::-webkit- rules by design; Safari and older Chromium have only
+ * the ::-webkit- family. Both paths land on the same palette, so every browser
+ * gets a scrollbar that belongs here — only the corner radius differs.
+ *
+ * Both properties inherit, so setting them on the root covers all ten scroll
+ * containers. That includes the register's header and body, which reserve a
+ * matching scrollbar gutter to keep their columns lined up: they stay lined up
+ * because the width changes for both at once. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 6px;
+  /* a transparent border inset by background-clip keeps the thumb off the
+     track edge without painting a second element */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 input, select {
   font-family: inherit;
   font-size: 13px;
@@ -637,7 +671,10 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 }
 .calendar-grid {
   display: grid; grid-template-columns: repeat(7, 1fr);
-  grid-auto-rows: minmax(98px, auto);
+  /* sized for a day header plus three chips and the overflow line — the most a
+     cell can now hold. Grid rows size together, so leaving this free to grow
+     meant one crowded day made every other week in the month taller too. */
+  grid-auto-rows: minmax(116px, auto);
   border-top: 1px solid var(--border); border-left: 1px solid var(--border);
   border-radius: 8px; overflow: hidden; flex: 1;
 }
@@ -669,7 +706,38 @@ input[type="date"]:invalid::-webkit-datetime-edit { color: var(--muted2); }
 .cal-chip.inflow .chip-amt { color: var(--accent); }
 .cal-chip.projected .chip-amt { color: var(--muted); }
 .cal-chip.demo { cursor: default; font-size: 10px; padding: 2px 8px; }
-.cal-more { font-size: 10px; color: var(--muted); padding-left: 2px; cursor: default; }
+/* the overflow line is the affordance for opening the day, so it has to look
+   like something you can click rather than a caption */
+.cal-more {
+  font-size: 10px; color: var(--muted); padding-left: 2px; cursor: pointer;
+  margin-top: auto;
+}
+.cal-cell:hover .cal-more { color: var(--accent); }
+
+/* ---- spending view ---- */
+.cal-flow {
+  display: flex; flex-direction: column; gap: 2px;
+  justify-content: center; flex: 1; min-height: 0;
+}
+.cal-flow.quiet { color: var(--muted2); font-size: 13px; align-items: center; }
+.cal-flow-net {
+  font-size: 15px; font-weight: 700; color: var(--soft);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.cal-flow.pos .cal-flow-net { color: var(--accent); }
+.cal-flow.neg .cal-flow-net { color: var(--red); }
+/* in and out on their own line only when a day has both, so the common case
+   stays a single clean figure */
+.cal-flow-split {
+  display: flex; justify-content: space-between; gap: 6px;
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--muted);
+}
+.cal-flow-split .pos { color: var(--accent); opacity: .85; }
+.cal-flow-split .neg { color: var(--red); opacity: .85; }
+.cal-tab-gap { flex: 1; }
+.cal-month-net { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.cal-month-net strong { font-size: 13px; color: var(--soft); font-variant-numeric: tabular-nums; }
 .cal-cell:not(.empty) { cursor: pointer; }
 .cal-cell:not(.empty):hover { background: #16181d; }
 

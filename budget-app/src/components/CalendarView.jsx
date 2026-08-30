@@ -4,11 +4,38 @@ import { api } from '../api.js';
 
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
+// Three fits the cell at its natural height. A fourth pushed the row taller,
+// and because grid rows size together every other week in the month grew with
+// it — one busy Tuesday and the whole calendar stopped fitting on screen.
+const VISIBLE_CHIPS = 3;
+
+/** What a day cost, for the spending view. The sign is carried by the figure
+ *  itself as well as the colour, so the two directions are still told apart
+ *  without relying on red and green. */
+function DayFlow({ flow }) {
+  if (!flow || (flow.in === 0 && flow.out === 0)) {
+    return <div className="cal-flow quiet">—</div>;
+  }
+  const net = flow.in - flow.out;
+  return (
+    <div className={`cal-flow ${net > 0 ? 'pos' : net < 0 ? 'neg' : ''}`}>
+      <div className="cal-flow-net">{fmt(net)}</div>
+      {flow.in > 0 && flow.out > 0 && (
+        <div className="cal-flow-split">
+          <span className="pos">{fmt(flow.in)}</span>
+          <span className="neg">{fmt(-flow.out)}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function CalendarView({ state, month, setMonth, setView }) {
   const [txns, setTxns] = useState(null);
   const [showCleared, setShowCleared] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
   const [dayPopup, setDayPopup] = useState(null); // { day, anchor }
+  const [mode, setMode] = useState('transactions'); // 'transactions' | 'spending'
 
   useEffect(() => { api('/api/transactions').then(setTxns); }, []);
 
@@ -53,6 +80,26 @@ export default function CalendarView({ state, month, setMonth, setView }) {
     }
   }
 
+  // What was actually spent or received each day. Same exclusions as the Income
+  // vs Expenses report, so the two views of a month can never disagree:
+  // transfers between your own accounts are not spending, starting balances are
+  // not income you earned, balance adjustments are reconciliation noise, and
+  // loan accounts are tracking-only.
+  const flowByDay = new Map();
+  if (txns) {
+    for (const t of txns) {
+      if (t.date.slice(0, 7) !== month) continue;
+      if (t.is_starting || t.is_transfer) continue;
+      if (t.account_type === 'loan') continue;
+      if (t.payee === 'Balance Adjustment') continue;
+      const day = Number(t.date.slice(8, 10));
+      const f = flowByDay.get(day) ?? { in: 0, out: 0 };
+      if (t.amount > 0) f.in += t.amount; else f.out += -t.amount;
+      flowByDay.set(day, f);
+    }
+  }
+  const monthNet = [...flowByDay.values()].reduce((s2, f) => s2 + f.in - f.out, 0);
+
   const cells = [];
   for (let i = 0; i < firstDow; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
@@ -83,23 +130,49 @@ export default function CalendarView({ state, month, setMonth, setView }) {
 
       <div className="filter-tabs">
         <span
-          className={`filter-tab toggle ${showCleared ? 'active' : ''}`}
-          onClick={() => setShowCleared(v => !v)}
-          title="Show transactions that have cleared"
+          className={`filter-tab ${mode === 'transactions' ? 'active' : ''}`}
+          onClick={() => setMode('transactions')}
+          title="Show each transaction on the day it happened"
         >
-          ✓ Cleared
+          Transactions
         </span>
         <span
-          className={`filter-tab toggle ${showRecurring ? 'active' : ''}`}
-          onClick={() => setShowRecurring(v => !v)}
-          title="Show recurring transactions, including upcoming ones"
+          className={`filter-tab ${mode === 'spending' ? 'active' : ''}`}
+          onClick={() => setMode('spending')}
+          title="Show what each day cost you, in and out"
         >
-          🔁 Recurring
+          Spending
         </span>
-        <span className="cal-legend">
-          <span className="cal-chip demo">Posted</span>
-          <span className="cal-chip demo projected">Upcoming recurring</span>
-        </span>
+        <span className="cal-tab-gap" />
+        {mode === 'transactions' ? (
+          <>
+            <span
+              className={`filter-tab toggle ${showCleared ? 'active' : ''}`}
+              onClick={() => setShowCleared(v => !v)}
+              title="Show transactions that have cleared"
+            >
+              ✓ Cleared
+            </span>
+            <span
+              className={`filter-tab toggle ${showRecurring ? 'active' : ''}`}
+              onClick={() => setShowRecurring(v => !v)}
+              title="Show recurring transactions, including upcoming ones"
+            >
+              🔁 Recurring
+            </span>
+            <span className="cal-legend">
+              <span className="cal-chip demo">Posted</span>
+              <span className="cal-chip demo projected">Upcoming recurring</span>
+            </span>
+          </>
+        ) : (
+          /* the cleared and recurring toggles hide chips; they have no meaning
+             for a figure that is asking what actually moved */
+          <span className="cal-legend cal-month-net">
+            <span>Net this month</span>
+            <strong className={monthNet > 0 ? 'pos-amt' : monthNet < 0 ? 'neg-amt' : ''}>{fmt(monthNet)}</strong>
+          </span>
+        )}
       </div>
 
       <div className="calendar-wrap">
@@ -120,7 +193,8 @@ export default function CalendarView({ state, month, setMonth, setView }) {
                 }}
               >
                 {d && <div className="cal-day"><span>{d}</span></div>}
-                {chips.slice(0, 4).map(c => (
+                {d && mode === 'spending' && <DayFlow flow={flowByDay.get(d)} />}
+                {mode === 'transactions' && chips.slice(0, VISIBLE_CHIPS).map(c => (
                   <div
                     key={c.id}
                     className={`cal-chip ${c.projected ? 'projected' : ''} ${c.amount > 0 ? 'inflow' : ''}`}
@@ -131,8 +205,10 @@ export default function CalendarView({ state, month, setMonth, setView }) {
                     <span className="chip-amt">{fmt(c.amount)}</span>
                   </div>
                 ))}
-                {chips.length > 4 && (
-                  <div className="cal-more">+{chips.length - 4} more</div>
+                {mode === 'transactions' && chips.length > VISIBLE_CHIPS && (
+                  <div className="cal-more" title="Open this day to see them all">
+                    +{chips.length - VISIBLE_CHIPS} more…
+                  </div>
                 )}
               </div>
             );

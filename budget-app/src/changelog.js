@@ -14,6 +14,36 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.6.5',
+    date: '2026-08-30',
+    title: 'A spending view on the calendar',
+    items: [
+      {
+        heading: 'See what each day cost you',
+        body: 'The calendar has a new Spending tab beside Transactions. Instead '
+          + 'of listing what happened, each day shows what it came to — money in '
+          + 'less money out — with the days you came out ahead in green and the '
+          + 'ones you did not in red. Days with both show the two figures '
+          + 'underneath. Moving money between your own accounts is left out, so '
+          + 'this matches the Income vs Expenses report rather than telling you '
+          + 'something different.',
+      },
+      {
+        heading: 'Scrollbars match the rest of Sprout',
+        body: 'Every scrolling list had the browser default, which was a lighter '
+          + 'grey than anything else on screen. They now use the same colours as '
+          + 'the app.',
+      },
+      {
+        heading: 'Busy days no longer stretch the calendar',
+        body: 'A day with four or more transactions used to grow its row, and '
+          + 'because calendar rows are all the same height, one crowded Tuesday '
+          + 'made every other week taller too. A day now shows three and says how '
+          + 'many more there are. Clicking it opens the full list as before.',
+      },
+    ],
+  },
+  {
     version: '0.6.4',
     date: '2026-07-30',
     title: 'Debt payments stand out in the register',
