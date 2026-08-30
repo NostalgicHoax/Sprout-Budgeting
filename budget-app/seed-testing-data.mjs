@@ -204,6 +204,18 @@ for (let i = MONTHS_BACK; i >= 0; i--) {
     made++;
   }
 
+  // one deliberately crowded day, so the calendar's three-chip cap and its
+  // "+N more" affordance are actually visible in the sandbox
+  if (isCurrent) {
+    for (const [payee, amount] of [
+      ['Corner Bakery', 12.40], ['Pharmacy', 23.10], ['Bookshop', 31.00],
+      ['Hardware Store', 58.75], ['Petrol', 44.20], ['Newsagent', 6.50],
+    ]) {
+      await spend(pick([checking, visa, amex]), day(m, 19), payee, $(amount), pick([groceries, hobbies, gifts]));
+      made++;
+    }
+  }
+
   // a couple of uncleared and uncategorized rows to poke at
   if (isCurrent) {
     await txn({ accountId: checking, date: day(m, 24), payee: 'Pending Charge', amount: -$(41.2), kind: 'uncategorized', cleared: false });
