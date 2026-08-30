@@ -1187,3 +1187,152 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
 .passkey-row .icon-btn { visibility: visible; }
 .modal-error { margin: 0; font-size: 12px; color: var(--red); }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+
+/* ============================================================================
+   Narrow screens
+   ----------------------------------------------------------------------------
+   The register alone asks for 474px and the two side panes take another 580, so
+   below roughly 860px there is no arrangement in which all three fit. Rather
+   than squeeze everything, the panes leave the flow and become drawers over the
+   content. Keep this breakpoint in step with NARROW_PX in src/useNarrow.js,
+   which the components read to change behaviour rather than only appearance.
+   ========================================================================== */
+@media (max-width: 860px) {
+  /* ---- the two panes become drawers ---- */
+  .sidebar.as-drawer {
+    position: fixed; top: 0; bottom: 0; left: 0; z-index: 210;
+    width: min(86vw, 320px);
+    transform: translateX(-100%);
+    transition: transform .2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+  }
+  .sidebar.as-drawer.nav-open { transform: none; }
+
+  .right-panel {
+    position: fixed; top: 0; bottom: 0; right: 0; z-index: 210;
+    width: min(88vw, 360px);
+    transform: translateX(100%);
+    transition: transform .2s ease;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+  }
+  :root[data-right-open="1"] .right-panel { transform: none; }
+
+  /* dragging the edge of a drawer means nothing — it is not holding a column
+     open against anything */
+  .sidebar.as-drawer .resize-handle,
+  .right-panel .resize-handle { display: none; }
+
+  .pane-scrim {
+    position: fixed; inset: 0; z-index: 205;
+    background: rgba(0, 0, 0, .55);
+  }
+  /* the two ways back to a closed drawer, parked in opposite top corners so
+     they never sit under the buttons a view puts in its own header */
+  .pane-toggle {
+    position: fixed; top: 10px; z-index: 200;
+    width: 38px; height: 38px; border-radius: 10px;
+    border: 1px solid var(--border2); background: var(--panel);
+    color: var(--soft); font-size: 16px; line-height: 1; cursor: pointer;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .pane-toggle:hover { background: var(--hover); color: var(--bright); }
+  .pane-toggle.nav { left: 10px; }
+  .pane-toggle.summary { right: 10px; }
+
+  /* headers keep clear of those two buttons, and are allowed to wrap rather
+     than push their contents off the side */
+  .topbar { padding: 8px 56px; gap: 10px; flex-wrap: wrap; min-height: 0; }
+  .account-topbar { padding-right: 12px; }
+  .month-label { font-size: 15px; min-width: 0; }
+  .rta-wrap { flex: 1 1 100%; justify-content: flex-start; }
+  .account-title { font-size: 16px; }
+  .filter-tabs { overflow-x: auto; flex-wrap: nowrap; }
+  .filter-tabs::-webkit-scrollbar { height: 0; }
+
+  /* every dialog was sized for a desktop window */
+  .modal, .popover, .day-popover, .connections-modal,
+  .security-modal, .changelog-modal, .delete-modal {
+    width: auto; max-width: calc(100vw - 20px);
+  }
+  .budget-menu { left: 8px; right: 8px; }
+}
+
+/* ---- phone ---- */
+@media (max-width: 560px) {
+  /* The register stops being a table. Seven columns cannot survive 390px, so
+     each row becomes two lines: what it was and what it cost on top, when and
+     which category underneath. Grid areas do this without the component
+     knowing, because the cells are already in a fixed DOM order. */
+  .txn-grid.row:not(.editor):not(.with-account),
+  .txn-grid.col-head {
+    grid-template-columns: 26px 1fr auto;
+    grid-template-areas:
+      "sel payee amount"
+      "sel date  category";
+    row-gap: 2px; padding-top: 9px; padding-bottom: 9px;
+  }
+  .txn-grid.col-head { display: none; }  /* headings for columns that no longer exist */
+  .txn-grid.row:not(.editor) > div:nth-child(1) { grid-area: sel; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(2) { grid-area: date; font-size: 11px; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(3) { grid-area: payee; font-weight: 600; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(4) { grid-area: category; }
+  /* memo has nowhere to go on two lines; it stays in the row's tooltip and the
+     day view rather than truncating to nothing */
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(5) { display: none; }
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(6),
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(7) { grid-area: amount; text-align: right; }
+  /* the two amount cells share one area, and exactly one of them is ever
+     filled, so the empty one must not paint over the other */
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(6):empty,
+  .txn-grid.row:not(.editor):not(.with-account) > div:nth-child(7):empty { display: none; }
+
+  /* the editor keeps its own shape and simply scrolls sideways — a form that
+     reflows while you are filling it in is worse than one you scroll */
+  .table-scroll { overflow-x: auto; }
+  .txn-grid.editor { min-width: 640px; }
+
+  /* All Accounts and category views carry an extra Account cell, so every
+     position after the date shifts by one. Same two lines, four columns. */
+  .txn-grid.row.with-account:not(.editor) {
+    grid-template-columns: 26px auto 1fr auto;
+    grid-template-areas:
+      "sel payee   payee    amount"
+      "sel date    account  category";
+  }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(3) { grid-area: account; font-size: 11px; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(4) { grid-area: payee; font-weight: 600; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(5) { grid-area: category; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(6) { display: none; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(7),
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(8) { grid-area: amount; text-align: right; }
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(7):empty,
+  .txn-grid.row.with-account:not(.editor) > div:nth-child(8):empty { display: none; }
+
+  /* Budget: the category and what is left of it. Assigned and Activity are one
+     tap away in the drawer, and neither is what you scan a phone for.
+     :not(.txn-grid) because a register row is also a .grid-row.row and would
+     otherwise be re-columned by these rules after the block above. */
+  .grid-row.col-head:not(.txn-grid),
+  .grid-row.row:not(.txn-grid),
+  .grid-row.group-head:not(.txn-grid) {
+    grid-template-columns: 1fr 96px;
+  }
+  .grid-row.col-head:not(.txn-grid) > div:nth-child(2),
+  .grid-row.col-head:not(.txn-grid) > div:nth-child(3),
+  .grid-row.row:not(.txn-grid) > div:nth-child(2),
+  .grid-row.row:not(.txn-grid) > div:nth-child(3),
+  .grid-row.group-head:not(.txn-grid) > div:nth-child(2),
+  .grid-row.group-head:not(.txn-grid) > div:nth-child(3) { display: none; }
+
+  /* calendar cells shrink to the day and its chips' amounts */
+  .calendar-grid { grid-auto-rows: minmax(76px, auto); }
+  .cal-cell { padding: 4px 3px; gap: 2px; }
+  .chip-payee { display: none; }
+  .cal-chip { justify-content: flex-end; padding: 1px 4px; font-size: 10px; }
+  .cal-flow-net { font-size: 12px; }
+  .cal-flow-split { display: none; }
+  .calendar-head { font-size: 10px; }
+
+  .flow-table { font-size: 12px; }
+  .flow-table th, .flow-table td { padding: 6px 4px; }
+}

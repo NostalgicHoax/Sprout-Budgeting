@@ -5,6 +5,7 @@ import SecurityModal from './SecurityModal.jsx';
 import ConnectionsModal from './ConnectionsModal.jsx';
 import ChangelogModal, { hasUnreadChangelog, markChangelogSeen, lastSeenVersion } from './ChangelogModal.jsx';
 import ResizeHandle from './ResizeHandle.jsx';
+import useNarrow from '../useNarrow.js';
 import { APP_VERSION } from '../changelog.js';
 
 const GROUPS = [
@@ -33,6 +34,12 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   // back on every re-render in between
   const [unreadNews, setUnreadNews] = useState(hasUnreadChangelog);
   const [railed, setRailed] = useState(() => localStorage.getItem('sidebarCollapsed') === '1');
+  // On a phone the sidebar is a drawer, not a column, so the rail is set aside
+  // and this governs instead. It is not persisted: a drawer should always open
+  // closed, however you left it last time.
+  const narrow = useNarrow();
+  const [navOpen, setNavOpen] = useState(false);
+  useEffect(() => { if (!narrow) setNavOpen(false); }, [narrow]);
   const [width, setWidth] = useState(() => Number(localStorage.getItem('sidebarWidth')) || 300);
 
   // the pane reads its width from a variable so a drag can set it; the .railed
@@ -95,10 +102,14 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   const isActive = item => item.type === 'account'
     ? view.type === 'account' && view.accountId === 'all'
     : view.type === item.type;
-  const go = item => setView(item.accountId ? { type: item.type, accountId: item.accountId } : { type: item.type });
+  const go = item => {
+    setNavOpen(false);
+    setView(item.accountId ? { type: item.type, accountId: item.accountId } : { type: item.type });
+  };
 
-  // collapsed: a slim rail keeping the nav icons reachable
-  if (railed) {
+  // collapsed: a slim rail keeping the nav icons reachable. Not on a phone —
+  // there the drawer below shows the real sidebar instead of a strip of icons.
+  if (railed && !narrow) {
     return (
       <aside className="sidebar railed">
         {sideHandle}
@@ -134,7 +145,12 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   }
 
   return (
-    <aside className="sidebar">
+    <>
+      {narrow && !navOpen && (
+        <button className="pane-toggle nav" title="Menu" onClick={() => setNavOpen(true)}>☰</button>
+      )}
+      {narrow && navOpen && <div className="pane-scrim" onClick={() => setNavOpen(false)} />}
+    <aside className={`sidebar ${narrow ? 'as-drawer' : ''} ${navOpen ? 'nav-open' : ''}`}>
       {sideHandle}
       <div className="sidebar-head clickable" onClick={() => setMenuOpen(o => !o)}>
         <div className="sidebar-logo">🌿</div>
@@ -272,6 +288,7 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
         <ConnectionsModal state={state} refresh={refresh} onClose={() => setShowConnections(false)} />
       )}
     </aside>
+    </>
   );
 }
 

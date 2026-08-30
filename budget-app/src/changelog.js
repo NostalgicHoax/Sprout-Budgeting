@@ -14,6 +14,32 @@ export const APP_VERSION = typeof __APP_VERSION__ === 'string' ? __APP_VERSION__
 
 export const CHANGELOG = [
   {
+    version: '0.7.0',
+    date: '2026-08-30',
+    title: 'Sprout works on a phone',
+    items: [
+      {
+        heading: 'A layout that fits a small screen',
+        body: 'Open Sprout on your phone and the two side panels step out of the '
+          + 'way, becoming drawers you pull in when you want them — the menu from '
+          + 'a button top left, the month summary from one top right. Tapping a '
+          + 'category opens its details straight away.',
+      },
+      {
+        heading: 'Transactions read as a list, not a table',
+        body: 'Seven columns will not fit on a phone, so each transaction becomes '
+          + 'two lines instead: who it was and what it cost, with the date and '
+          + 'category underneath. The budget shows each category and what is left '
+          + 'of it, and the calendar keeps its shape with smaller days.',
+      },
+      {
+        heading: 'Nothing changes on a computer',
+        body: 'The full three-column layout, the draggable panel edges and '
+          + 'everything else are exactly as they were on a larger screen.',
+      },
+    ],
+  },
+  {
     version: '0.6.5',
     date: '2026-08-30',
     title: 'A spending view on the calendar',

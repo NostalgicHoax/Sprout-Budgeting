@@ -3,9 +3,24 @@ import { fmt, fmtDate, monthLabel, monthName, parseAmount } from '../money.js';
 import { api } from '../api.js';
 import ConfirmButton from './ConfirmButton.jsx';
 import ResizeHandle from './ResizeHandle.jsx';
+import useNarrow from '../useNarrow.js';
 
 export default function RightPanel({ state, month, refresh, selectedCat, onCloseInspector, setView }) {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('rightPanelCollapsed') === '1');
+  // On a phone this pane is a drawer. The rail is a desktop compromise — 44px
+  // of a 390px screen for a vertical word — so it is set aside and this governs.
+  const narrow = useNarrow();
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (!narrow) setOpen(false); }, [narrow]);
+  // picking a category is a request to see its details, so the drawer follows
+  useEffect(() => { if (narrow && selectedCat) setOpen(true); }, [narrow, selectedCat?.id]);
+  // The pane renders from three different places depending on what is showing,
+  // so its open state is published on the root element rather than threaded
+  // through all three — the same trick the pane widths already use.
+  useEffect(() => {
+    document.documentElement.dataset.rightOpen = narrow && open ? '1' : '0';
+    return () => { delete document.documentElement.dataset.rightOpen; };
+  }, [narrow, open]);
   const [width, setWidth] = useState(() => Number(localStorage.getItem('rightPanelWidth')) || 340);
   const pull = useRef(0);
 
@@ -55,7 +70,7 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     });
   }
 
-  if (collapsed) {
+  if (collapsed && !narrow) {
     return (
       <aside className="right-panel collapsed" onClick={toggle} title="Expand panel">
         {handle}
@@ -67,7 +82,7 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     );
   }
 
-  return selectedCat ? (
+  const panel = selectedCat ? (
     <CategoryInspector
       key={selectedCat.id}
       cat={selectedCat}
@@ -81,6 +96,17 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     />
   ) : (
     <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} handle={handle} />
+  );
+
+  if (!narrow) return panel;
+  return (
+    <>
+      {!open && (
+        <button className="pane-toggle summary" title="Show summary" onClick={() => setOpen(true)}>‹</button>
+      )}
+      {open && <div className="pane-scrim" onClick={() => setOpen(false)} />}
+      {panel}
+    </>
   );
 }
 
