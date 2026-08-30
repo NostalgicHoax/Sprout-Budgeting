@@ -9,21 +9,29 @@ import { useEffect, useState } from 'react';
  *  Keep this in step with the 860px media queries in styles.css. */
 export const NARROW_PX = 860;
 
-const QUERY = `(max-width: ${NARROW_PX}px)`;
+/** And where it stops being a desktop layout at all: the register stops being a
+ *  table, the calendar stops being a grid. Seven columns of a 390px screen is
+ *  50px a day, which is not enough for a date and an amount — so this one is a
+ *  change in behaviour too. Keep in step with the 560px media queries. */
+export const PHONE_PX = 560;
 
-export default function useNarrow() {
-  const [narrow, setNarrow] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(QUERY).matches
+function useMaxWidth(px) {
+  const query = `(max-width: ${px}px)`;
+  const [matches, setMatches] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(query).matches
   );
 
   useEffect(() => {
-    const mq = window.matchMedia(QUERY);
-    const onChange = e => setNarrow(e.matches);
+    const mq = window.matchMedia(query);
+    const onChange = e => setMatches(e.matches);
     // re-read on mount: the window can be resized between first render and here
-    setNarrow(mq.matches);
+    setMatches(mq.matches);
     mq.addEventListener('change', onChange);
     return () => mq.removeEventListener('change', onChange);
-  }, []);
+  }, [query]);
 
-  return narrow;
+  return matches;
 }
+
+export default function useNarrow() { return useMaxWidth(NARROW_PX); }
+export function usePhone() { return useMaxWidth(PHONE_PX); }

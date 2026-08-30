@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { fmt, monthLabel } from '../money.js';
 import { api } from '../api.js';
+import { usePhone } from '../useNarrow.js';
 
 const DOW = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 
@@ -30,12 +31,28 @@ function DayFlow({ flow }) {
   );
 }
 
+/** One transaction, in either layout. The grid shows at most three of these
+ *  in a cell; the list shows every one a day has. */
+function DayChip({ c, setView }) {
+  return (
+    <div
+      className={`cal-chip ${c.projected ? 'projected' : ''} ${c.amount > 0 ? 'inflow' : ''}`}
+      title={`${c.payee || '(no payee)'} — ${fmt(c.amount)}${c.projected ? ' · upcoming recurring' : c.is_recurring ? ' · recurring' : ''}${c.memo ? `\n${c.memo}` : ''}`}
+      onClick={() => !c.projected && setView({ type: 'account', accountId: c.account_id })}
+    >
+      <span className="chip-payee">{(c.is_recurring || c.projected) ? '🔁 ' : ''}{c.payee || (c.is_transfer ? `⇄ ${c.transfer_account_name || 'Transfer'}` : c.category_name) || 'Transaction'}</span>
+      <span className="chip-amt">{fmt(c.amount)}</span>
+    </div>
+  );
+}
+
 export default function CalendarView({ state, month, setMonth, setView }) {
   const [txns, setTxns] = useState(null);
   const [showCleared, setShowCleared] = useState(true);
   const [showRecurring, setShowRecurring] = useState(true);
   const [dayPopup, setDayPopup] = useState(null); // { day, anchor }
   const [mode, setMode] = useState('transactions'); // 'transactions' | 'spending'
+  const phone = usePhone();
 
   useEffect(() => { api('/api/transactions').then(setTxns); }, []);
 
@@ -176,6 +193,43 @@ export default function CalendarView({ state, month, setMonth, setView }) {
       </div>
 
       <div className="calendar-wrap">
+        {/* Seven columns of a 390px screen is 50px a day — too little for a
+            date and an amount, let alone a payee. On a phone the month runs
+            down the page instead: one row per day, the 1st at the top. Every
+            transaction a day has is shown, because rows in a list do not share
+            a height, which is the only thing the three-chip cap was ever for.
+            Tapping a day still opens it; tapping a chip still opens its
+            account; both modes and both filters work as they do on a grid. */}
+        {phone ? (
+          <div className="calendar-list">
+            {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
+              const chips = byDay.get(d) ?? [];
+              return (
+                <div
+                  key={d}
+                  className={`cal-day-row ${d === todayDay ? 'today' : ''}`}
+                  onClick={e => {
+                    if (e.target.closest('.cal-chip')) return;
+                    setDayPopup({ day: d, anchor: e.currentTarget.getBoundingClientRect() });
+                  }}
+                >
+                  <div className="cal-day-mark">
+                    <span className="cal-dow">{DOW[new Date(y, m - 1, d).getDay()]}</span>
+                    <span className="cal-dnum">{d}</span>
+                  </div>
+                  <div className="cal-day-body">
+                    {mode === 'spending'
+                      ? <DayFlow flow={flowByDay.get(d)} />
+                      : chips.length === 0
+                        ? <div className="cal-flow quiet">—</div>
+                        : chips.map(c => <DayChip key={c.id} c={c} setView={setView} />)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+        <>
         <div className="calendar-head">
           {DOW.map(d => <div key={d}>{d}</div>)}
         </div>
@@ -195,15 +249,7 @@ export default function CalendarView({ state, month, setMonth, setView }) {
                 {d && <div className="cal-day"><span>{d}</span></div>}
                 {d && mode === 'spending' && <DayFlow flow={flowByDay.get(d)} />}
                 {mode === 'transactions' && chips.slice(0, VISIBLE_CHIPS).map(c => (
-                  <div
-                    key={c.id}
-                    className={`cal-chip ${c.projected ? 'projected' : ''} ${c.amount > 0 ? 'inflow' : ''}`}
-                    title={`${c.payee || '(no payee)'} — ${fmt(c.amount)}${c.projected ? ' · upcoming recurring' : c.is_recurring ? ' · recurring' : ''}${c.memo ? `\n${c.memo}` : ''}`}
-                    onClick={() => !c.projected && setView({ type: 'account', accountId: c.account_id })}
-                  >
-                    <span className="chip-payee">{(c.is_recurring || c.projected) ? '🔁 ' : ''}{c.payee || (c.is_transfer ? `⇄ ${c.transfer_account_name || 'Transfer'}` : c.category_name) || 'Transaction'}</span>
-                    <span className="chip-amt">{fmt(c.amount)}</span>
-                  </div>
+                  <DayChip key={c.id} c={c} setView={setView} />
                 ))}
                 {mode === 'transactions' && chips.length > VISIBLE_CHIPS && (
                   <div className="cal-more" title="Open this day to see them all">
@@ -214,6 +260,8 @@ export default function CalendarView({ state, month, setMonth, setView }) {
             );
           })}
         </div>
+        </>
+        )}
       </div>
 
       {dayPopup && (

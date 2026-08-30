@@ -1452,14 +1452,49 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
      rather than being pinned to the top of a cell that is now three lines tall */
   .grid-row.row:not(.txn-grid) > div:nth-child(4) { align-self: center; }
 
-  /* calendar cells shrink to the day and its chips' amounts */
-  .calendar-grid { grid-auto-rows: minmax(76px, auto); }
-  .cal-cell { padding: 4px 3px; gap: 2px; }
-  .chip-payee { display: none; }
-  .cal-chip { justify-content: flex-end; padding: 1px 4px; font-size: 10px; }
-  .cal-flow-net { font-size: 12px; }
-  .cal-flow-split { display: none; }
-  .calendar-head { font-size: 10px; }
+  /* The calendar runs down the page instead of across it. The grid is not
+     rendered at all at this width, so none of the rules that squeezed it are
+     here any more — the chips get their payees back, and the spending view
+     gets its in/out split back, because a full-width row has room for both. */
+  .calendar-wrap { padding: 0 0 20px; }
+  .cal-day-row {
+    display: grid; grid-template-columns: 46px 1fr;
+    gap: 10px; align-items: start;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--row-border);
+    cursor: pointer;
+  }
+  .cal-day-row:hover { background: #16181d; }
+  /* the date reads as a column of its own down the left, the way a day marker
+     does on a grid — weekday above, and the number in the circle that marks
+     today on the grid as well */
+  .cal-day-mark {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    line-height: 1;
+  }
+  .cal-dow {
+    font-size: 9px; font-weight: 700; letter-spacing: .07em; color: var(--muted2);
+  }
+  .cal-dnum {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 26px; height: 26px; border-radius: 50%;
+    font-size: 15px; font-weight: 700; color: var(--soft);
+    font-variant-numeric: tabular-nums;
+  }
+  .cal-day-row.today .cal-dnum { background: var(--accent); color: var(--accent-dark); }
+  .cal-day-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .cal-day-body .cal-chip { font-size: 12px; padding: 4px 9px; gap: 10px; }
+  .cal-day-body .chip-payee { flex: 1; }
+  /* a day with nothing on it is a thin line, not an empty box */
+  .cal-day-body .cal-flow { flex: none; align-items: flex-start; }
+  .cal-day-body .cal-flow.quiet { font-size: 12px; }
+  .cal-day-body .cal-flow-split { gap: 12px; justify-content: flex-start; }
+
+  /* the toggles wrap onto a second line rather than scrolling out of reach —
+     "🔁 Recurring" was falling off the right of the screen */
+  .filter-tabs { flex-wrap: wrap; overflow-x: visible; padding: 10px 12px; }
+  .cal-tab-gap { display: none; }
+  .cal-legend { margin-left: 0; }
 
   .flow-table { font-size: 12px; }
   .flow-table th, .flow-table td { padding: 6px 4px; }
