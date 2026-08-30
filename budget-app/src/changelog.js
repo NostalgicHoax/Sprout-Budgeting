@@ -29,6 +29,12 @@ export const CHANGELOG = [
           + 'something different.',
       },
       {
+        heading: 'Scrollbars match the rest of Sprout',
+        body: 'Every scrolling list had the browser default, which was a lighter '
+          + 'grey than anything else on screen. They now use the same colours as '
+          + 'the app.',
+      },
+      {
         heading: 'Busy days no longer stretch the calendar',
         body: 'A day with four or more transactions used to grow its row, and '
           + 'because calendar rows are all the same height, one crowded Tuesday '

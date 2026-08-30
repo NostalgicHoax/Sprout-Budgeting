@@ -39,6 +39,40 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: inherit; }
+
+/* Scrollbars, in the app's own colours.
+ *
+ * color-scheme: dark above already avoids a white scrollbar, but what it gives
+ * is the browser's grey — next to these borders it reads as a piece of someone
+ * else's interface.
+ *
+ * Two mechanisms deliberately. Firefox and Chromium 121+ honour the standard
+ * scrollbar-color / scrollbar-width, and when scrollbar-color is set Chromium
+ * ignores the ::-webkit- rules by design; Safari and older Chromium have only
+ * the ::-webkit- family. Both paths land on the same palette, so every browser
+ * gets a scrollbar that belongs here — only the corner radius differs.
+ *
+ * Both properties inherit, so setting them on the root covers all ten scroll
+ * containers. That includes the register's header and body, which reserve a
+ * matching scrollbar gutter to keep their columns lined up: they stay lined up
+ * because the width changes for both at once. */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--border2);
+  border-radius: 6px;
+  /* a transparent border inset by background-clip keeps the thumb off the
+     track edge without painting a second element */
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--muted2); background-clip: padding-box; }
+::-webkit-scrollbar-corner { background: transparent; }
+
 input, select {
   font-family: inherit;
   font-size: 13px;
