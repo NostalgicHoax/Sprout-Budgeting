@@ -1326,15 +1326,20 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
 
   /* The goal status shared a line with the category name and lost to it —
      "Goal met — $55…" and "Overspent $113.28 of $95…" tell you nothing. It now
-     wraps onto its own line, indented to sit under the name and in line with
-     the funding bar beneath it, and is allowed to wrap rather than truncate. */
-  .cat-cell.indent .cat-line { flex-wrap: wrap; row-gap: 1px; }
+     wraps onto its own line under the name and in line with the funding bar
+     beneath it, and is allowed to wrap rather than truncate.
+
+     One rule, not two: an earlier pass indented the status by hand and a later
+     one moved that indent onto the line that holds it, leaving both on the
+     books. They disagreed, and which won came down to file order. */
+  .cat-cell.indent .cat-line { flex-wrap: wrap; row-gap: 0; }
   .cat-cell.indent .cat-status {
     flex: 1 0 100%;
-    margin-left: 24px;
+    margin: var(--cat-stack-gap) 0 0;
     text-align: left;
     white-space: normal;
     overflow: visible;
+    line-height: 1.35;
   }
 
   /* Room to breathe.
@@ -1357,7 +1362,14 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
   .grid-row.group-head:not(.txn-grid) { align-items: center; }
   /* a narrower step in, now that the row itself has a left pad and the screen
      has none to spare */
-  .cat-cell.indent { padding-left: 12px; position: relative; }
+  .cat-cell.indent {
+    padding-left: 12px;
+    position: relative;
+    /* the name, the status and the bar step in by one figure and are
+       spaced by another, so the stack reads as one column */
+    --cat-stack-indent: 28px;
+    --cat-stack-gap: 6px;
+  }
   /* The emoji stops being a character on the first line and becomes the marker
      for the whole cell, so it sits on the centre of the name, status and bar
      together rather than riding along with the name. It leaves the flow, so
@@ -1368,13 +1380,13 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
     transform: translateY(-50%);
     font-size: 16px; line-height: 1;
   }
-  .cat-cell.indent .cat-line { margin-left: 28px; }
+  .cat-cell.indent .cat-line { margin-left: var(--cat-stack-indent); }
   /* the funding bar is .fbar-track — .bar-track is the goal progress bar in the
      inspector, a different element that happens to read alike */
-  .cat-cell.indent .fbar-track { margin: 9px 0 0 28px; height: 7px; }
-  .cat-cell.indent .bar-track { margin: 10px 0 0 28px; }
-  /* the status no longer indents itself — the line it sits in already does */
-  .cat-cell.indent .cat-status { margin-top: 2px; margin-left: 0; line-height: 1.35; }
+  .cat-cell.indent .fbar-track {
+    margin: var(--cat-stack-gap) 0 0 var(--cat-stack-indent);
+    height: 7px;
+  }
   /* the available pill takes the row's vertical centre, opposite the emoji,
      rather than being pinned to the top of a cell that is now three lines tall */
   .grid-row.row:not(.txn-grid) > div:nth-child(4) { align-self: center; }
