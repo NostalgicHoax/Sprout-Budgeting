@@ -63,7 +63,10 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
     if (selectedCat) setCollapsed(false);
   }, [selectedCat?.id]);
 
+  // As in the sidebar: on a phone this pane is a drawer over the whole screen,
+  // so its collapse button closes it rather than railing it.
   function toggle() {
+    if (narrow) { setOpen(false); return; }
     setCollapsed(c => {
       localStorage.setItem('rightPanelCollapsed', c ? '0' : '1');
       return !c;
@@ -91,11 +94,12 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
       refresh={refresh}
       onClose={onCloseInspector}
       onCollapse={toggle}
+      collapseTitle={narrow ? 'Close' : 'Collapse panel'}
       setView={setView}
       handle={handle}
     />
   ) : (
-    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} handle={handle} />
+    <SummaryPanel state={state} month={month} refresh={refresh} onCollapse={toggle} collapseTitle={narrow ? 'Close' : 'Collapse panel'} handle={handle} />
   );
 
   if (!narrow) return panel;
@@ -110,7 +114,7 @@ export default function RightPanel({ state, month, refresh, selectedCat, onClose
   );
 }
 
-function SummaryPanel({ state, month, refresh, onCollapse, handle }) {
+function SummaryPanel({ state, month, refresh, onCollapse, collapseTitle, handle }) {
   const { summary } = state;
   const allCats = state.groups.flatMap(g => g.categories);
   const overspentTotal = allCats.reduce((s, c) => s + Math.min(c.available, 0), 0);
@@ -125,7 +129,7 @@ function SummaryPanel({ state, month, refresh, onCollapse, handle }) {
       {handle}
       <div className="panel-head">
         <div className="panel-title">{monthName(month)}'s Summary</div>
-        <button className="panel-toggle" title="Collapse panel" onClick={onCollapse}>»</button>
+        <button className="panel-toggle" title={collapseTitle} onClick={onCollapse}>»</button>
       </div>
       <section className="insp-section">
         <div className="stat-block">
@@ -197,7 +201,7 @@ function periodNoun(period, every, unit) {
   }
 }
 
-function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setView, handle }) {
+function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, collapseTitle, setView, handle }) {
   const [details, setDetails] = useState(null);
   const [goalInput, setGoalInput] = useState('');
   const [period, setPeriod] = useState('monthly');
@@ -310,7 +314,7 @@ function CategoryInspector({ cat, month, rta, refresh, onClose, onCollapse, setV
         </div>
         <span className="panel-head-actions">
           <button className="panel-toggle" title="Back to summary" onClick={onClose}>✕</button>
-          <button className="panel-toggle" title="Collapse panel" onClick={onCollapse}>»</button>
+          <button className="panel-toggle" title={collapseTitle} onClick={onCollapse}>»</button>
         </span>
       </div>
 

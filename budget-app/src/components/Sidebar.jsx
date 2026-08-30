@@ -92,7 +92,11 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
   const toggle = key => setCollapsed(c => ({ ...c, [key]: !c[key] }));
   const activeBudget = auth.budgets.find(b => b.id === auth.activeBudgetId);
 
+  // On a phone there is no rail to collapse to — the drawer is the sidebar. So
+  // the same button means "put this away" there, which is what it looks like it
+  // should do when the pane is covering the screen.
   function toggleRail() {
+    if (narrow) { setNavOpen(false); return; }
     setRailed(r => {
       localStorage.setItem('sidebarCollapsed', r ? '0' : '1');
       return !r;
@@ -162,7 +166,7 @@ export default function Sidebar({ state, view, setView, refresh, auth, onAuthCha
         <div className="head-caret">{unreadNews && <span className="news-dot" title="New in this version" />}▾</div>
         <button
           className="panel-toggle"
-          title="Collapse sidebar"
+          title={narrow ? 'Close menu' : 'Collapse sidebar'}
           onClick={e => { e.stopPropagation(); toggleRail(); }}
         >
           «

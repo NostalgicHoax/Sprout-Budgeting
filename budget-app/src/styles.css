@@ -1244,7 +1244,12 @@ body.resizing .resize-handle::after { background: var(--accent); opacity: .9; }
   .topbar { padding: 8px 56px; gap: 10px; flex-wrap: wrap; min-height: 0; }
   .account-topbar { padding-right: 12px; }
   .month-label { font-size: 15px; min-width: 0; }
-  .rta-wrap { flex: 1 1 100%; justify-content: flex-start; }
+  /* The month and the Ready to Assign box each take a line of their own and
+     centre on it. The two pane buttons are fixed to the corners and out of the
+     flow, and the header's side padding matches on both sides to clear them —
+     so centring within the content box centres on the screen. */
+  .month-nav { flex: 1 1 100%; justify-content: center; }
+  .rta-wrap { flex: 1 1 100%; justify-content: center; }
   .account-title { font-size: 16px; }
   .filter-tabs { overflow-x: auto; flex-wrap: nowrap; }
   .filter-tabs::-webkit-scrollbar { height: 0; }
