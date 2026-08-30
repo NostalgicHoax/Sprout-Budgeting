@@ -73,6 +73,25 @@ button { font-family: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted2); background-clip: padding-box; }
 ::-webkit-scrollbar-corner { background: transparent; }
 
+/* …except where there is nothing to grab them with. A touch screen scrolls by
+ * dragging the content itself, so a bar is a strip of a 390px screen showing
+ * nothing, and the gutter the register reserves to keep its columns lined up
+ * has no scrollbar left to line up with.
+ *
+ * Both conditions on purpose: the width catches a phone-sized window being
+ * used to check the layout, and the coarse pointer catches a real touch device
+ * that is wider than that — a phone turned sideways, or a tablet.
+ *
+ * :root, not *, because the base rule above is on :root and would otherwise win
+ * on specificity whatever the order. scrollbar-color goes back to auto so that
+ * Chromium stops ignoring the ::-webkit- rule, which is what older WebKit has
+ * instead of scrollbar-width. */
+@media (max-width: 560px), (pointer: coarse) {
+  :root { scrollbar-width: none; scrollbar-color: auto; }
+  ::-webkit-scrollbar { display: none; width: 0; height: 0; }
+  .col-head, .table-body { scrollbar-gutter: auto; }
+}
+
 input, select {
   font-family: inherit;
   font-size: 13px;
